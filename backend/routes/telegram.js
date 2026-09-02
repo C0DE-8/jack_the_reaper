@@ -15,7 +15,7 @@ const {
 const router = express.Router();
 
 function getPasscode(req) {
-  return req.body.passcode || req.query.passcode || req.header("x-telegram-passcode") || req.header("x-setup-secret");
+  return req.body?.passcode || req.query?.passcode || req.header("x-telegram-passcode") || req.header("x-setup-secret");
 }
 
 function requireTelegramPasscode(req, res, next) {
