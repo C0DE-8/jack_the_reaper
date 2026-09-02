@@ -4,12 +4,7 @@ const express = require("express");
 const db = require("../db");
 
 const router = express.Router();
-const authorizedChats = new Set(
-  String(process.env.ADMIN_TELEGRAM_CHAT_ID || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-);
+const authorizedChats = new Set();
 
 function botToken() {
   return process.env.TELEGRAM_BOT_TOKEN;
@@ -69,6 +64,20 @@ async function telegramApi(method, payload) {
   return result.result;
 }
 
+async function sendMessage(chatId, text, extra = {}) {
+  if (process.env.TELEGRAM_DRY_RUN === "true") {
+    console.log("Telegram dry run:", JSON.stringify({ chatId, text, extra }));
+    return { dryRun: true };
+  }
+
+  return telegramApi("sendMessage", {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+    ...extra,
+  });
+}
+
 function loginPasswordFrom(text) {
   if (text.startsWith("/login")) {
     return text.replace(/^\/login(@\w+)?\s*/i, "").trim();
@@ -78,11 +87,15 @@ function loginPasswordFrom(text) {
 }
 
 async function reply(chatId, text, extra = {}) {
-  return telegramApi("sendMessage", {
-    chat_id: chatId,
-    text,
-    disable_web_page_preview: true,
-    ...extra,
+  return sendMessage(chatId, text, extra);
+}
+
+async function askForPassword(chatId) {
+  await reply(chatId, "Enter admin password.", {
+    reply_markup: {
+      force_reply: true,
+      input_field_placeholder: "Admin password",
+    },
   });
 }
 
@@ -95,6 +108,7 @@ async function handleAdminCommand(chatId, text, message) {
         "/health - check DBMS Gateway status",
         "/db_ping - run SELECT 1 through DBMS Gateway",
         "/whoami - show this Telegram chat id",
+        "/logout - lock this chat",
       ].join("\n")
     );
     return;
@@ -117,6 +131,12 @@ async function handleAdminCommand(chatId, text, message) {
     return;
   }
 
+  if (text === "/logout" || text === "/logout@word_bot") {
+    authorizedChats.delete(chatId);
+    await reply(chatId, "Logged out. Send /start to unlock admin access again.");
+    return;
+  }
+
   await reply(chatId, "Unknown admin command. Send /help.");
 }
 
@@ -127,7 +147,8 @@ async function handleMessage(message) {
   if (!chatId || !text) return;
 
   if (text === "/start" || text === "/start@word_bot") {
-    await reply(chatId, "Admin bot ready. Send /login <password>.");
+    authorizedChats.delete(chatId);
+    await askForPassword(chatId);
     return;
   }
 
@@ -144,7 +165,7 @@ async function handleMessage(message) {
       return;
     }
 
-    await reply(chatId, "Admin password required. Send /login <password>.");
+    await askForPassword(chatId);
     return;
   }
 
@@ -175,7 +196,7 @@ router.get("/status", (req, res) => {
       botToken: Boolean(botToken()),
       adminPassword: Boolean(adminPassword()),
       webhookSecret: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET),
-      adminChatIds: authorizedChats.size,
+      activeAdminSessions: authorizedChats.size,
     },
   });
 });
