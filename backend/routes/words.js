@@ -18,20 +18,16 @@ function isAdminRequest(req) {
 }
 
 router.post("/", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
-
   try {
     const words = parseWords(req.body?.words || req.body?.text);
     const batch = await saveWordBatch({
       words,
-      source: "http",
-      createdBy: req.body?.createdBy || "admin",
+      source: "public",
+      createdBy: req.body?.createdBy || "public",
     });
 
     const notification = [
-      `New word batch #${batch.id}`,
+      `New public word message #${batch.id}`,
       `${batch.wordCount}/${MAX_WORDS} words`,
       batch.words.join(" "),
     ].join("\n");

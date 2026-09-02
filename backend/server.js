@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const db = require("./db");
 const telegramRouter = require("./routes/telegram");
 const wordsRouter = require("./routes/words");
@@ -16,6 +17,7 @@ app.use("/telegram", telegramRouter);
 app.use("/api/telegram", telegramRouter);
 app.use("/words", wordsRouter);
 app.use("/api/words", wordsRouter);
+app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 app.get("/", (req, res) => {
   res.json({ ok: true, service: SERVICE_NAME });

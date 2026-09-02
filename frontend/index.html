@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jack The Reaper</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #f5f5f2;
+        color: #1b1b18;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(100%, 560px);
+      }
+
+      h1 {
+        margin: 0 0 18px;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 160px;
+        resize: vertical;
+        border: 1px solid #bab8ae;
+        border-radius: 8px;
+        padding: 14px;
+        font: inherit;
+        line-height: 1.45;
+        background: #ffffff;
+        color: inherit;
+      }
+
+      textarea:focus {
+        outline: 3px solid #d8d4c5;
+        border-color: #6d6a5f;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 12px 18px;
+        min-height: 44px;
+        background: #1f3d2b;
+        color: #ffffff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+      }
+
+      .counter,
+      .status {
+        color: #5c5a52;
+        font-size: 14px;
+      }
+
+      .status {
+        min-height: 22px;
+      }
+
+      .status[data-state="error"] {
+        color: #9f1d1d;
+      }
+
+      .status[data-state="success"] {
+        color: #1f6b37;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Jack The Reaper</h1>
+      <form id="word-form">
+        <textarea
+          id="words"
+          name="words"
+          maxlength="600"
+          placeholder="one goat cat 1 2 3 4 5"
+          autocomplete="off"
+        ></textarea>
+        <div class="row">
+          <span class="counter"><span id="word-count">0</span>/24 words</span>
+          <button id="submit" type="submit">Send</button>
+        </div>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </form>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
+    <script src="./api.js"></script>
+    <script>
+      const form = document.querySelector("#word-form");
+      const textarea = document.querySelector("#words");
+      const counter = document.querySelector("#word-count");
+      const button = document.querySelector("#submit");
+      const status = document.querySelector("#status");
+
+      function wordsFrom(value) {
+        return value
+          .trim()
+          .split(/[\s,]+/)
+          .filter(Boolean);
+      }
+
+      function setStatus(message, state = "") {
+        status.textContent = message;
+        status.dataset.state = state;
+      }
+
+      function updateCount() {
+        const count = wordsFrom(textarea.value).length;
+        counter.textContent = String(count);
+        button.disabled = count < 1 || count > 24;
+        if (count > 24) setStatus("Send 24 words or fewer.", "error");
+        else if (status.dataset.state === "error") setStatus("");
+      }
+
+      textarea.addEventListener("input", updateCount);
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const text = textarea.value.trim();
+        button.disabled = true;
+        setStatus("Sending...");
+
+        try {
+          await window.wordApi.sendWords(text);
+          textarea.value = "";
+          updateCount();
+          setStatus("Sent.", "success");
+        } catch (error) {
+          setStatus(error.message || "Could not send words.", "error");
+          updateCount();
+        }
+      });
+
+      updateCount();
+    </script>
+  </body>
+</html>
