@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "check": "node --check server.js && node --check db.js && node --check diamond-sql.js",
+    "check": "node --check server.js && node --check db.js && node --check diamond-sql.js && node --check routes/telegram.js",
     "test": "npm run check",
     "start": "node server.js"
   },
