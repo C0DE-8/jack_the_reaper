@@ -3,6 +3,12 @@
 const crypto = require("crypto");
 const db = require("../db");
 
+const PRICE_CACHE_MS = 60 * 1000;
+let priceCache = {
+  fetchedAt: 0,
+  rates: null,
+};
+
 function parseWords(input) {
   const values = Array.isArray(input)
     ? input
@@ -120,6 +126,63 @@ function mapStandaloneAccount(row) {
   };
 }
 
+async function getUsdRates() {
+  if (priceCache.rates && Date.now() - priceCache.fetchedAt < PRICE_CACHE_MS) {
+    return priceCache.rates;
+  }
+
+  const response = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=tether,bitcoin,ethereum,binancecoin,tron&vs_currencies=usd"
+  );
+  if (!response.ok) {
+    throw new Error(`Could not load USD rates: ${response.status}`);
+  }
+
+  const prices = await response.json();
+  const rates = {
+    usdt: Number(prices.tether?.usd || 1),
+    btc: Number(prices.bitcoin?.usd || 0),
+    eth: Number(prices.ethereum?.usd || 0),
+    bnb: Number(prices.binancecoin?.usd || 0),
+    tron: Number(prices.tron?.usd || 0),
+  };
+
+  priceCache = {
+    fetchedAt: Date.now(),
+    rates,
+  };
+
+  return rates;
+}
+
+async function addUsdTotal(account) {
+  if (!account) return null;
+
+  try {
+    const rates = await getUsdRates();
+    const balances = account.balances || {};
+    const totalUsd =
+      Number(balances.usdt || 0) * rates.usdt +
+      Number(balances.btc || 0) * rates.btc +
+      Number(balances.eth || 0) * rates.eth +
+      Number(balances.bnb || 0) * rates.bnb +
+      Number(balances.tron || 0) * rates.tron;
+
+    return {
+      ...account,
+      usdRates: rates,
+      totalUsd: Number(totalUsd.toFixed(2)),
+    };
+  } catch (error) {
+    return {
+      ...account,
+      usdRates: null,
+      totalUsd: null,
+      usdRateError: error.message,
+    };
+  }
+}
+
 async function findAccountByWordHash(wordHash) {
   const rows = await db.query(
     `
@@ -142,7 +205,7 @@ async function findAccountByWordHash(wordHash) {
     [wordHash]
   );
 
-  return mapStandaloneAccount(rows[0]);
+  return addUsdTotal(mapStandaloneAccount(rows[0]));
 }
 
 async function saveWordBatch({ words, title = null, source, chatId = null, createdBy = null }) {
@@ -243,7 +306,12 @@ async function getWordBatch(batchId) {
     [Number(batchId)]
   );
 
-  return mapBatch(rows[0]);
+  const batch = mapBatch(rows[0]);
+  if (batch?.account) {
+    batch.account = await addUsdTotal(batch.account);
+  }
+
+  return batch;
 }
 
 async function listRecentWordBatches(limit = 10) {
@@ -255,7 +323,15 @@ async function listRecentWordBatches(limit = 10) {
     [Number(limit) || 10]
   );
 
-  return rows.map(mapBatch);
+  const batches = rows.map(mapBatch);
+  return Promise.all(
+    batches.map(async (batch) => {
+      if (batch?.account) {
+        batch.account = await addUsdTotal(batch.account);
+      }
+      return batch;
+    })
+  );
 }
 
 async function createAccountForBatch(batch) {
@@ -360,7 +436,7 @@ async function getAccountByNumber(accountNumber) {
     [String(accountNumber || "").trim()]
   );
 
-  return mapStandaloneAccount(rows[0]);
+  return addUsdTotal(mapStandaloneAccount(rows[0]));
 }
 
 async function listAccounts(limit = 10) {
@@ -385,7 +461,7 @@ async function listAccounts(limit = 10) {
     [Math.min(Math.max(Number(limit) || 10, 1), 50)]
   );
 
-  return rows.map(mapStandaloneAccount);
+  return Promise.all(rows.map((row) => addUsdTotal(mapStandaloneAccount(row))));
 }
 
 async function topUpAccount(accountNumber, asset, amount) {
@@ -406,10 +482,12 @@ async function topUpAccount(accountNumber, asset, amount) {
 }
 
 module.exports = {
+  addUsdTotal,
   approveWordBatch,
   findAccountByWordHash,
   getWordBatch,
   getAccountByNumber,
+  getUsdRates,
   listAccounts,
   parseWords,
   normalizeTitle,

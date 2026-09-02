@@ -1,12 +1,13 @@
 "use strict";
 
 const db = require("./db");
-const { approveWordBatch, rejectWordBatch } = require("./services/words");
+const { approveWordBatch, getAccountByNumber, listAccounts, rejectWordBatch, topUpAccount } = require("./services/words");
 
 const configuredWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL || "";
 const menuKeyboard = {
   keyboard: [
     [{ text: "Activate Alerts" }, { text: "Alert Status" }],
+    [{ text: "Account Help" }, { text: "Account List" }],
     [{ text: "Stop Alerts" }],
   ],
   resize_keyboard: true,
@@ -244,12 +245,114 @@ function approvalResultText(batch, action) {
 
   if (batch.account) {
     lines.push(`Account: ${batch.account.accountNumber}`);
-    lines.push("Balances: USDT 0, BTC 0, ETH 0, BNB 0, TRON 0");
+    lines.push(`USD Total: ${usdTotalText(batch.account)}`);
+    lines.push(`Balances: ${balanceLine(batch.account)}`);
   } else if (batch.approvalStatus === "rejected") {
     lines.push("User must submit a new word list.");
   }
 
   return lines.join("\n");
+}
+
+function balanceLine(account) {
+  const balances = account.balances || {};
+  return `USDT ${balances.usdt || 0}, BTC ${balances.btc || 0}, ETH ${balances.eth || 0}, BNB ${balances.bnb || 0}, TRON ${balances.tron || 0}`;
+}
+
+function usdTotalText(account) {
+  return typeof account.totalUsd === "number" ? `$${account.totalUsd.toFixed(2)}` : "rate unavailable";
+}
+
+function accountText(account) {
+  return [
+    `Account: ${account.accountNumber}`,
+    account.title ? `Title: ${account.title}` : null,
+    `Batch: #${account.batchId}`,
+    `USD Total: ${usdTotalText(account)}`,
+    `Balances: ${balanceLine(account)}`,
+  ].filter(Boolean).join("\n");
+}
+
+function accountHelpText() {
+  return [
+    "Account commands:",
+    "/account list",
+    "/account show <account-number>",
+    "/account topup <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
+    "",
+    "Example: /account topup JTR-000017-2A39B2 USDT 50",
+  ].join("\n");
+}
+
+function parseAccountCommand(text) {
+  const parts = String(text || "").trim().split(/\s+/).filter(Boolean);
+  if (parts[0] === "Account" && parts[1] === "List") return { action: "list", args: [] };
+  if (parts[0] === "Account" && parts[1] === "Help") return { action: "help", args: [] };
+  if (!/^\/account(@\w+)?$/i.test(parts[0] || "")) return null;
+
+  return {
+    action: String(parts[1] || "help").toLowerCase(),
+    args: parts.slice(2),
+  };
+}
+
+async function handleAccountCommand(message, command) {
+  const chat = message.chat;
+  const isActive = await isTelegramAlertChatActive(chat.id);
+  if (!isActive) {
+    await sendTelegramMessage(chat.id, "Activate this chat first, then send the admin password.", {
+      reply_markup: menuKeyboard,
+    });
+    return;
+  }
+
+  if (command.action === "help") {
+    await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: menuKeyboard });
+    return;
+  }
+
+  if (command.action === "list") {
+    const accounts = await listAccounts(10);
+    const text = accounts.length
+      ? accounts.map((account) => accountText(account)).join("\n\n")
+      : "No accounts have been created yet.";
+    await sendTelegramMessage(chat.id, text, { reply_markup: menuKeyboard });
+    return;
+  }
+
+  if (command.action === "show") {
+    const [accountNumber] = command.args || [];
+    if (!accountNumber) {
+      await sendTelegramMessage(chat.id, "Usage: /account show <account-number>", { reply_markup: menuKeyboard });
+      return;
+    }
+
+    const account = await getAccountByNumber(accountNumber);
+    await sendTelegramMessage(chat.id, account ? accountText(account) : "Account was not found.", {
+      reply_markup: menuKeyboard,
+    });
+    return;
+  }
+
+  if (command.action === "topup" || command.action === "top-up") {
+    const [accountNumber, asset, amount] = command.args || [];
+    if (!accountNumber || !asset || !amount) {
+      await sendTelegramMessage(
+        chat.id,
+        "Usage: /account topup <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
+        { reply_markup: menuKeyboard }
+      );
+      return;
+    }
+
+    const account = await topUpAccount(accountNumber, asset, amount);
+    await sendTelegramMessage(chat.id, [`Top-up complete.`, accountText(account)].join("\n"), {
+      reply_markup: menuKeyboard,
+    });
+    return;
+  }
+
+  await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: menuKeyboard });
 }
 
 async function handleTelegramCallbackQuery(callbackQuery) {
@@ -315,6 +418,18 @@ async function handleTelegramMessage(message) {
   const text = String(message.text || "").trim();
   const chat = message.chat;
   if (!chat || !text) return;
+
+  const accountCommand = parseAccountCommand(text);
+  if (accountCommand) {
+    try {
+      await handleAccountCommand(message, accountCommand);
+    } catch (error) {
+      await sendTelegramMessage(chat.id, `Account command failed: ${error.message}`, {
+        reply_markup: menuKeyboard,
+      });
+    }
+    return;
+  }
 
   if (text === "/start") {
     await sendTelegramMessage(chat.id, "Choose an alert option. Use Activate Alerts, then send the admin password.", {
