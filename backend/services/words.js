@@ -405,10 +405,10 @@ function normalizeAsset(asset) {
   return normalized;
 }
 
-function normalizeAmount(amount) {
+function normalizeAmount(amount, label = "Amount") {
   const value = Number(amount);
   if (!Number.isFinite(value) || value <= 0) {
-    throw new Error("Top-up amount must be a positive number");
+    throw new Error(`${label} must be a positive number`);
   }
 
   return value;
@@ -491,7 +491,7 @@ async function listAccounts(limit = 10) {
 
 async function topUpResolvedAccount(account, asset, amount) {
   const normalizedAsset = normalizeAsset(asset);
-  const normalizedAmount = normalizeAmount(amount);
+  const normalizedAmount = normalizeAmount(amount, "Top-up amount");
   const column = `${normalizedAsset}_balance`;
   if (!account) {
     throw new Error("Account was not found");
@@ -513,6 +513,33 @@ async function topUpAccountById(accountId, asset, amount) {
   return topUpResolvedAccount(await getAccountById(accountId), asset, amount);
 }
 
+async function removeBalanceResolvedAccount(account, asset, amount) {
+  const normalizedAsset = normalizeAsset(asset);
+  const normalizedAmount = normalizeAmount(amount, "Removal amount");
+  const column = `${normalizedAsset}_balance`;
+  if (!account) {
+    throw new Error("Account was not found");
+  }
+  if (Number(account.balances?.[normalizedAsset] || 0) < normalizedAmount) {
+    throw new Error(`Insufficient ${normalizedAsset.toUpperCase()} balance`);
+  }
+
+  await db.execute(`UPDATE word_accounts SET ${column} = ${column} - ? WHERE account_number = ?`, [
+    normalizedAmount,
+    account.accountNumber,
+  ]);
+
+  return getAccountByNumber(account.accountNumber);
+}
+
+async function removeAccountBalance(accountNumber, asset, amount) {
+  return removeBalanceResolvedAccount(await getAccountByNumber(accountNumber), asset, amount);
+}
+
+async function removeAccountBalanceById(accountId, asset, amount) {
+  return removeBalanceResolvedAccount(await getAccountById(accountId), asset, amount);
+}
+
 module.exports = {
   addUsdTotal,
   approveWordBatch,
@@ -524,6 +551,8 @@ module.exports = {
   listAccounts,
   parseWords,
   normalizeTitle,
+  removeAccountBalance,
+  removeAccountBalanceById,
   rejectWordBatch,
   saveWordBatch,
   listRecentWordBatches,

@@ -6,6 +6,8 @@ const {
   getAccountById,
   getAccountByNumber,
   listAccounts,
+  removeAccountBalance,
+  removeAccountBalanceById,
   rejectWordBatch,
   topUpAccount,
   topUpAccountById,
@@ -292,9 +294,11 @@ function accountHelpText() {
     "/account list",
     "/account show <account-number>",
     "/account topup <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
+    "/account remove <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
     "",
-    "You can also tap Account List, choose an account, then choose an asset and amount.",
+    "You can also tap Account List, choose an account, then choose an asset and add/remove amount.",
     "Example: /account topup JTR-000017-2A39B2 USDT 50",
+    "Example: /account remove JTR-000017-2A39B2 USDT 10",
   ].join("\n");
 }
 
@@ -336,12 +340,25 @@ function topUpAmountOptions(asset) {
   }[asset];
 }
 
-function topUpKeyboard(account, asset) {
+function assetActionKeyboard(account, asset) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "Add", callback_data: `acct:asset:${account.id}:${asset}:add` },
+        { text: "Remove", callback_data: `acct:asset:${account.id}:${asset}:remove` },
+      ],
+      [{ text: "Back", callback_data: `acct:show:${account.id}` }],
+    ],
+  };
+}
+
+function amountKeyboard(account, asset, action) {
+  const prefix = action === "remove" ? "-" : "+";
   return {
     inline_keyboard: [
       topUpAmountOptions(asset).map((amount) => ({
-        text: `+${amount} ${asset.toUpperCase()}`,
-        callback_data: `acct:add:${account.id}:${asset}:${amount}`,
+        text: `${prefix}${amount} ${asset.toUpperCase()}`,
+        callback_data: `acct:${action}:${account.id}:${asset}:${amount}`,
       })),
       [{ text: "Back", callback_data: `acct:show:${account.id}` }],
     ],
@@ -418,6 +435,24 @@ async function handleAccountCommand(message, command) {
     return;
   }
 
+  if (command.action === "remove") {
+    const [accountNumber, asset, amount] = command.args || [];
+    if (!accountNumber || !asset || !amount) {
+      await sendTelegramMessage(
+        chat.id,
+        "Usage: /account remove <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
+        { reply_markup: activeMenuKeyboard }
+      );
+      return;
+    }
+
+    const account = await removeAccountBalance(accountNumber, asset, amount);
+    await sendTelegramMessage(chat.id, [`Balance removed.`, accountText(account)].join("\n"), {
+      reply_markup: accountKeyboard(account),
+    });
+    return;
+  }
+
   await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: activeMenuKeyboard });
 }
 
@@ -470,36 +505,48 @@ async function handleTelegramCallbackQuery(callbackQuery) {
     return;
   }
 
-  const accountAssetMatch = data.match(/^acct:asset:(\d+):(usdt|btc|eth|bnb|tron)$/);
+  const accountAssetMatch = data.match(/^acct:asset:(\d+):(usdt|btc|eth|bnb|tron)(?::(add|remove))?$/);
   if (accountAssetMatch) {
     const account = await getAccountById(accountAssetMatch[1]);
     const asset = accountAssetMatch[2];
-    await answerCallbackQuery(callbackQuery.id, account ? `Choose ${asset.toUpperCase()} amount.` : "Account was not found.");
+    const action = accountAssetMatch[3];
+    await answerCallbackQuery(
+      callbackQuery.id,
+      account ? `Choose ${asset.toUpperCase()} ${action ? "amount" : "action"}.` : "Account was not found."
+    );
     if (account && chat && messageId) {
+      const replyMarkup = action ? amountKeyboard(account, asset, action) : assetActionKeyboard(account, asset);
       await editTelegramMessageText(
         chat.id,
         messageId,
-        `${accountText(account)}\n\nChoose a ${asset.toUpperCase()} top-up amount.`,
-        { reply_markup: topUpKeyboard(account, asset) }
+        `${accountText(account)}\n\nChoose ${action || "add/remove"} for ${asset.toUpperCase()}.`,
+        { reply_markup: replyMarkup }
       );
     }
     return;
   }
 
-  const accountAddMatch = data.match(/^acct:add:(\d+):(usdt|btc|eth|bnb|tron):([0-9.]+)$/);
-  if (accountAddMatch) {
+  const accountBalanceMatch = data.match(/^acct:(add|remove):(\d+):(usdt|btc|eth|bnb|tron):([0-9.]+)$/);
+  if (accountBalanceMatch) {
     try {
-      const account = await topUpAccountById(accountAddMatch[1], accountAddMatch[2], accountAddMatch[3]);
-      await answerCallbackQuery(callbackQuery.id, "Top-up complete.");
+      const action = accountBalanceMatch[1];
+      const account =
+        action === "add"
+          ? await topUpAccountById(accountBalanceMatch[2], accountBalanceMatch[3], accountBalanceMatch[4])
+          : await removeAccountBalanceById(accountBalanceMatch[2], accountBalanceMatch[3], accountBalanceMatch[4]);
+      await answerCallbackQuery(callbackQuery.id, action === "add" ? "Top-up complete." : "Balance removed.");
       if (chat && messageId) {
-        await editTelegramMessageText(chat.id, messageId, [`Top-up complete.`, accountText(account)].join("\n"), {
+        await editTelegramMessageText(chat.id, messageId, [
+          action === "add" ? "Top-up complete." : "Balance removed.",
+          accountText(account),
+        ].join("\n"), {
           reply_markup: accountKeyboard(account),
         });
       }
     } catch (error) {
       await answerCallbackQuery(callbackQuery.id, error.message);
       if (chat) {
-        await sendTelegramMessage(chat.id, `Top-up failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
+        await sendTelegramMessage(chat.id, `Balance update failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
       }
     }
     return;

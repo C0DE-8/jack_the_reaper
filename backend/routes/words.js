@@ -9,6 +9,7 @@ const {
   listAccounts,
   listRecentWordBatches,
   parseWords,
+  removeAccountBalance,
   rejectWordBatch,
   saveWordBatch,
   topUpAccount,
@@ -114,6 +115,19 @@ router.post("/accounts/:accountNumber/top-up", async (req, res) => {
 
   try {
     const account = await topUpAccount(req.params.accountNumber, req.body?.asset, req.body?.amount);
+    res.json({ ok: true, account });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+router.post("/accounts/:accountNumber/remove", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    const account = await removeAccountBalance(req.params.accountNumber, req.body?.asset, req.body?.amount);
     res.json({ ok: true, account });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });
