@@ -20,8 +20,17 @@ async function run() {
   for (const file of files) {
     const sql = fs.readFileSync(path.join(sqlDir, file), "utf8");
     for (const statement of statementsFrom(sql)) {
-      await db.execute(statement);
-      console.log(`Migrated ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
+      try {
+        await db.execute(statement);
+        console.log(`Migrated ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
+      } catch (error) {
+        if (/duplicate column|duplicate key|duplicate.*index/i.test(error.message || "")) {
+          console.log(`Skipped ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")} already applied`);
+          continue;
+        }
+
+        throw error;
+      }
     }
   }
 }

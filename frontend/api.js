@@ -14,9 +14,17 @@
 
   window.wordApi = {
     apiUrl: API_URL,
-    async sendWords(text) {
+    async sendWords(text, title = "") {
       try {
-        const response = await api.post("/words", { text });
+        const response = await api.post("/words", { text, title });
+        return response.data;
+      } catch (error) {
+        throw new Error(messageFromError(error));
+      }
+    },
+    async getWordStatus(id) {
+      try {
+        const response = await api.get(`/words/${encodeURIComponent(id)}/status`);
         return response.data;
       } catch (error) {
         throw new Error(messageFromError(error));

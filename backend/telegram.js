@@ -1,6 +1,7 @@
 "use strict";
 
 const db = require("./db");
+const { approveWordBatch, rejectWordBatch } = require("./services/words");
 
 const configuredWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL || "";
 const menuKeyboard = {
@@ -67,6 +68,23 @@ async function sendTelegramMessage(chatId, text, options = {}) {
   });
 }
 
+async function answerCallbackQuery(callbackQueryId, text = "") {
+  return telegramRequest("answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    text,
+  });
+}
+
+async function editTelegramMessageText(chatId, messageId, text, options = {}) {
+  return telegramRequest("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    disable_web_page_preview: true,
+    ...options,
+  });
+}
+
 function isAbsoluteUrl(value) {
   return /^https:\/\//i.test(String(value || ""));
 }
@@ -102,7 +120,7 @@ async function setTelegramWebhook(value) {
 
   return telegramRequest("setWebhook", {
     url,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "callback_query"],
     drop_pending_updates: false,
   });
 }
@@ -164,7 +182,7 @@ function chunksForTelegram(text) {
   return chunks.length ? chunks : [""];
 }
 
-async function sendTelegramAlert(text) {
+async function sendTelegramAlert(text, options = {}) {
   if (!canUseTelegram()) {
     console.warn("Telegram bot token is not configured; alert skipped.");
     return false;
@@ -181,7 +199,7 @@ async function sendTelegramAlert(text) {
       const chatId = chat.chat_id || chat.chatId;
       try {
         for (const chunk of chunksForTelegram(text)) {
-          await sendTelegramMessage(chatId, chunk);
+          await sendTelegramMessage(chatId, chunk, options);
         }
       } catch (error) {
         if (error.status === 403 || error.status === 400) {
@@ -194,6 +212,81 @@ async function sendTelegramAlert(text) {
   );
 
   return true;
+}
+
+function approvalKeyboard(batchId) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "Approve", callback_data: `word:approve:${batchId}` },
+        { text: "Reject", callback_data: `word:reject:${batchId}` },
+      ],
+    ],
+  };
+}
+
+function reviewerFromCallback(callbackQuery) {
+  const from = callbackQuery.from || {};
+  return {
+    chatId: from.id,
+    username: from.username,
+    firstName: from.first_name,
+    lastName: from.last_name,
+  };
+}
+
+function approvalResultText(batch, action) {
+  const lines = [
+    action === "approve" ? `Approved word message #${batch.id}` : `Rejected word message #${batch.id}`,
+    batch.title ? `Title: ${batch.title}` : null,
+    `Status: ${batch.approvalStatus}`,
+  ].filter(Boolean);
+
+  if (batch.account) {
+    lines.push(`Account: ${batch.account.accountNumber}`);
+    lines.push("Balances: USDT 0, BTC 0, ETH 0, BNB 0, TRON 0");
+  } else if (batch.approvalStatus === "rejected") {
+    lines.push("User must submit a new word list.");
+  }
+
+  return lines.join("\n");
+}
+
+async function handleTelegramCallbackQuery(callbackQuery) {
+  const data = String(callbackQuery.data || "");
+  const match = data.match(/^word:(approve|reject):(\d+)$/);
+  if (!match) return;
+
+  const chat = callbackQuery.message?.chat;
+  const messageId = callbackQuery.message?.message_id;
+  const reviewer = reviewerFromCallback(callbackQuery);
+  const authorized = await isTelegramAlertChatActive(chat?.id || reviewer.chatId);
+
+  if (!authorized) {
+    await answerCallbackQuery(callbackQuery.id, "This chat is not authorized.");
+    return;
+  }
+
+  const action = match[1];
+  const batchId = Number(match[2]);
+
+  try {
+    const batch =
+      action === "approve"
+        ? await approveWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId })
+        : await rejectWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId });
+
+    await answerCallbackQuery(callbackQuery.id, action === "approve" ? "Approved." : "Rejected.");
+
+    if (chat && messageId) {
+      await editTelegramMessageText(chat.id, messageId, approvalResultText(batch, action));
+    }
+  } catch (error) {
+    await answerCallbackQuery(callbackQuery.id, error.message);
+    if (chat) {
+      await sendTelegramMessage(chat.id, `Review failed: ${error.message}`, { reply_markup: menuKeyboard });
+    }
+  }
 }
 
 async function getTelegramWebhookInfo() {
@@ -269,6 +362,10 @@ async function handleTelegramMessage(message) {
 }
 
 async function handleTelegramUpdate(update) {
+  if (update && update.callback_query) {
+    await handleTelegramCallbackQuery(update.callback_query);
+  }
+
   if (update && update.message) {
     await handleTelegramMessage(update.message);
   }
@@ -281,6 +378,7 @@ module.exports = {
   getTelegramStatus,
   getTelegramWebhookInfo,
   handleTelegramUpdate,
+  approvalKeyboard,
   sendTelegramAlert,
   sendTelegramMessage,
   setTelegramWebhook,

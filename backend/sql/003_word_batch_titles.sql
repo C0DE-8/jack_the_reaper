@@ -1,0 +1,2 @@
+ALTER TABLE word_batches
+  ADD COLUMN title VARCHAR(255) NULL AFTER id;
