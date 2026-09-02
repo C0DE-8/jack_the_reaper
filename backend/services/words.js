@@ -439,6 +439,31 @@ async function getAccountByNumber(accountNumber) {
   return addUsdTotal(mapStandaloneAccount(rows[0]));
 }
 
+async function getAccountById(accountId) {
+  const rows = await db.query(
+    `
+    SELECT
+      id,
+      batch_id AS batchId,
+      word_hash AS wordHash,
+      account_number AS accountNumber,
+      title,
+      usdt_balance AS usdtBalance,
+      btc_balance AS btcBalance,
+      eth_balance AS ethBalance,
+      bnb_balance AS bnbBalance,
+      tron_balance AS tronBalance,
+      created_at AS createdAt
+    FROM word_accounts
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [Number(accountId)]
+  );
+
+  return addUsdTotal(mapStandaloneAccount(rows[0]));
+}
+
 async function listAccounts(limit = 10) {
   const rows = await db.query(
     `
@@ -464,11 +489,10 @@ async function listAccounts(limit = 10) {
   return Promise.all(rows.map((row) => addUsdTotal(mapStandaloneAccount(row))));
 }
 
-async function topUpAccount(accountNumber, asset, amount) {
+async function topUpResolvedAccount(account, asset, amount) {
   const normalizedAsset = normalizeAsset(asset);
   const normalizedAmount = normalizeAmount(amount);
   const column = `${normalizedAsset}_balance`;
-  const account = await getAccountByNumber(accountNumber);
   if (!account) {
     throw new Error("Account was not found");
   }
@@ -481,11 +505,20 @@ async function topUpAccount(accountNumber, asset, amount) {
   return getAccountByNumber(account.accountNumber);
 }
 
+async function topUpAccount(accountNumber, asset, amount) {
+  return topUpResolvedAccount(await getAccountByNumber(accountNumber), asset, amount);
+}
+
+async function topUpAccountById(accountId, asset, amount) {
+  return topUpResolvedAccount(await getAccountById(accountId), asset, amount);
+}
+
 module.exports = {
   addUsdTotal,
   approveWordBatch,
   findAccountByWordHash,
   getWordBatch,
+  getAccountById,
   getAccountByNumber,
   getUsdRates,
   listAccounts,
@@ -495,5 +528,6 @@ module.exports = {
   saveWordBatch,
   listRecentWordBatches,
   topUpAccount,
+  topUpAccountById,
   wordHashFromWords,
 };

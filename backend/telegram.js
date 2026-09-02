@@ -1,15 +1,28 @@
 "use strict";
 
 const db = require("./db");
-const { approveWordBatch, getAccountByNumber, listAccounts, rejectWordBatch, topUpAccount } = require("./services/words");
+const {
+  approveWordBatch,
+  getAccountById,
+  getAccountByNumber,
+  listAccounts,
+  rejectWordBatch,
+  topUpAccount,
+  topUpAccountById,
+} = require("./services/words");
 
 const configuredWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL || "";
-const menuKeyboard = {
+const activeMenuKeyboard = {
   keyboard: [
-    [{ text: "Activate Alerts" }, { text: "Alert Status" }],
+    [{ text: "Alert Status" }],
     [{ text: "Account Help" }, { text: "Account List" }],
     [{ text: "Stop Alerts" }],
   ],
+  resize_keyboard: true,
+  one_time_keyboard: false,
+};
+const inactiveMenuKeyboard = {
+  keyboard: [[{ text: "Activate Alerts" }]],
   resize_keyboard: true,
   one_time_keyboard: false,
 };
@@ -280,8 +293,59 @@ function accountHelpText() {
     "/account show <account-number>",
     "/account topup <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
     "",
+    "You can also tap Account List, choose an account, then choose an asset and amount.",
     "Example: /account topup JTR-000017-2A39B2 USDT 50",
   ].join("\n");
+}
+
+function accountListKeyboard(accounts) {
+  return {
+    inline_keyboard: accounts.map((account) => [
+      {
+        text: `${account.accountNumber} ${usdTotalText(account)}`,
+        callback_data: `acct:show:${account.id}`,
+      },
+    ]),
+  };
+}
+
+function accountKeyboard(account) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "USDT", callback_data: `acct:asset:${account.id}:usdt` },
+        { text: "BTC", callback_data: `acct:asset:${account.id}:btc` },
+        { text: "ETH", callback_data: `acct:asset:${account.id}:eth` },
+      ],
+      [
+        { text: "BNB", callback_data: `acct:asset:${account.id}:bnb` },
+        { text: "TRON", callback_data: `acct:asset:${account.id}:tron` },
+      ],
+      [{ text: "Refresh", callback_data: `acct:show:${account.id}` }],
+    ],
+  };
+}
+
+function topUpAmountOptions(asset) {
+  return {
+    usdt: [10, 50, 100],
+    btc: [0.001, 0.01, 0.1],
+    eth: [0.01, 0.1, 1],
+    bnb: [0.1, 1, 10],
+    tron: [100, 500, 1000],
+  }[asset];
+}
+
+function topUpKeyboard(account, asset) {
+  return {
+    inline_keyboard: [
+      topUpAmountOptions(asset).map((amount) => ({
+        text: `+${amount} ${asset.toUpperCase()}`,
+        callback_data: `acct:add:${account.id}:${asset}:${amount}`,
+      })),
+      [{ text: "Back", callback_data: `acct:show:${account.id}` }],
+    ],
+  };
 }
 
 function parseAccountCommand(text) {
@@ -301,35 +365,37 @@ async function handleAccountCommand(message, command) {
   const isActive = await isTelegramAlertChatActive(chat.id);
   if (!isActive) {
     await sendTelegramMessage(chat.id, "Activate this chat first, then send the admin password.", {
-      reply_markup: menuKeyboard,
+      reply_markup: inactiveMenuKeyboard,
     });
     return;
   }
 
   if (command.action === "help") {
-    await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: menuKeyboard });
+    await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: activeMenuKeyboard });
     return;
   }
 
   if (command.action === "list") {
     const accounts = await listAccounts(10);
     const text = accounts.length
-      ? accounts.map((account) => accountText(account)).join("\n\n")
+      ? "Choose an account to view or top up."
       : "No accounts have been created yet.";
-    await sendTelegramMessage(chat.id, text, { reply_markup: menuKeyboard });
+    await sendTelegramMessage(chat.id, text, {
+      reply_markup: accounts.length ? accountListKeyboard(accounts) : activeMenuKeyboard,
+    });
     return;
   }
 
   if (command.action === "show") {
     const [accountNumber] = command.args || [];
     if (!accountNumber) {
-      await sendTelegramMessage(chat.id, "Usage: /account show <account-number>", { reply_markup: menuKeyboard });
+      await sendTelegramMessage(chat.id, "Usage: /account show <account-number>", { reply_markup: activeMenuKeyboard });
       return;
     }
 
     const account = await getAccountByNumber(accountNumber);
     await sendTelegramMessage(chat.id, account ? accountText(account) : "Account was not found.", {
-      reply_markup: menuKeyboard,
+      reply_markup: account ? accountKeyboard(account) : activeMenuKeyboard,
     });
     return;
   }
@@ -340,26 +406,23 @@ async function handleAccountCommand(message, command) {
       await sendTelegramMessage(
         chat.id,
         "Usage: /account topup <account-number> <USDT|BTC|ETH|BNB|TRON> <amount>",
-        { reply_markup: menuKeyboard }
+        { reply_markup: activeMenuKeyboard }
       );
       return;
     }
 
     const account = await topUpAccount(accountNumber, asset, amount);
     await sendTelegramMessage(chat.id, [`Top-up complete.`, accountText(account)].join("\n"), {
-      reply_markup: menuKeyboard,
+      reply_markup: accountKeyboard(account),
     });
     return;
   }
 
-  await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: menuKeyboard });
+  await sendTelegramMessage(chat.id, accountHelpText(), { reply_markup: activeMenuKeyboard });
 }
 
 async function handleTelegramCallbackQuery(callbackQuery) {
   const data = String(callbackQuery.data || "");
-  const match = data.match(/^word:(approve|reject):(\d+)$/);
-  if (!match) return;
-
   const chat = callbackQuery.message?.chat;
   const messageId = callbackQuery.message?.message_id;
   const reviewer = reviewerFromCallback(callbackQuery);
@@ -370,25 +433,76 @@ async function handleTelegramCallbackQuery(callbackQuery) {
     return;
   }
 
-  const action = match[1];
-  const batchId = Number(match[2]);
+  const wordMatch = data.match(/^word:(approve|reject):(\d+)$/);
+  if (wordMatch) {
+    const action = wordMatch[1];
+    const batchId = Number(wordMatch[2]);
 
-  try {
-    const batch =
-      action === "approve"
-        ? await approveWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId })
-        : await rejectWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId });
+    try {
+      const batch =
+        action === "approve"
+          ? await approveWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId })
+          : await rejectWordBatch(batchId, { ...reviewer, chatId: chat?.id || reviewer.chatId });
 
-    await answerCallbackQuery(callbackQuery.id, action === "approve" ? "Approved." : "Rejected.");
+      await answerCallbackQuery(callbackQuery.id, action === "approve" ? "Approved." : "Rejected.");
 
-    if (chat && messageId) {
-      await editTelegramMessageText(chat.id, messageId, approvalResultText(batch, action));
+      if (chat && messageId) {
+        await editTelegramMessageText(chat.id, messageId, approvalResultText(batch, action));
+      }
+    } catch (error) {
+      await answerCallbackQuery(callbackQuery.id, error.message);
+      if (chat) {
+        await sendTelegramMessage(chat.id, `Review failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
+      }
     }
-  } catch (error) {
-    await answerCallbackQuery(callbackQuery.id, error.message);
-    if (chat) {
-      await sendTelegramMessage(chat.id, `Review failed: ${error.message}`, { reply_markup: menuKeyboard });
+    return;
+  }
+
+  const accountShowMatch = data.match(/^acct:show:(\d+)$/);
+  if (accountShowMatch) {
+    const account = await getAccountById(accountShowMatch[1]);
+    await answerCallbackQuery(callbackQuery.id, account ? "Account loaded." : "Account was not found.");
+    if (account && chat && messageId) {
+      await editTelegramMessageText(chat.id, messageId, accountText(account), {
+        reply_markup: accountKeyboard(account),
+      });
     }
+    return;
+  }
+
+  const accountAssetMatch = data.match(/^acct:asset:(\d+):(usdt|btc|eth|bnb|tron)$/);
+  if (accountAssetMatch) {
+    const account = await getAccountById(accountAssetMatch[1]);
+    const asset = accountAssetMatch[2];
+    await answerCallbackQuery(callbackQuery.id, account ? `Choose ${asset.toUpperCase()} amount.` : "Account was not found.");
+    if (account && chat && messageId) {
+      await editTelegramMessageText(
+        chat.id,
+        messageId,
+        `${accountText(account)}\n\nChoose a ${asset.toUpperCase()} top-up amount.`,
+        { reply_markup: topUpKeyboard(account, asset) }
+      );
+    }
+    return;
+  }
+
+  const accountAddMatch = data.match(/^acct:add:(\d+):(usdt|btc|eth|bnb|tron):([0-9.]+)$/);
+  if (accountAddMatch) {
+    try {
+      const account = await topUpAccountById(accountAddMatch[1], accountAddMatch[2], accountAddMatch[3]);
+      await answerCallbackQuery(callbackQuery.id, "Top-up complete.");
+      if (chat && messageId) {
+        await editTelegramMessageText(chat.id, messageId, [`Top-up complete.`, accountText(account)].join("\n"), {
+          reply_markup: accountKeyboard(account),
+        });
+      }
+    } catch (error) {
+      await answerCallbackQuery(callbackQuery.id, error.message);
+      if (chat) {
+        await sendTelegramMessage(chat.id, `Top-up failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
+      }
+    }
+    return;
   }
 }
 
@@ -424,23 +538,22 @@ async function handleTelegramMessage(message) {
     try {
       await handleAccountCommand(message, accountCommand);
     } catch (error) {
-      await sendTelegramMessage(chat.id, `Account command failed: ${error.message}`, {
-        reply_markup: menuKeyboard,
-      });
+      await sendTelegramMessage(chat.id, `Account command failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
     }
     return;
   }
 
   if (text === "/start") {
+    const isActive = await isTelegramAlertChatActive(chat.id);
     await sendTelegramMessage(chat.id, "Choose an alert option. Use Activate Alerts, then send the admin password.", {
-      reply_markup: menuKeyboard,
+      reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard,
     });
     return;
   }
 
   if (text === "Activate Alerts") {
     await sendTelegramMessage(chat.id, "Send the admin password to activate this chat.", {
-      reply_markup: menuKeyboard,
+      reply_markup: inactiveMenuKeyboard,
     });
     return;
   }
@@ -450,7 +563,7 @@ async function handleTelegramMessage(message) {
     await sendTelegramMessage(
       chat.id,
       isActive ? "Alerts are active for this chat." : "Alerts are not active. Tap Activate Alerts and send the password.",
-      { reply_markup: menuKeyboard }
+      { reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard }
     );
     return;
   }
@@ -458,7 +571,7 @@ async function handleTelegramMessage(message) {
   if (text === "/stop" || text === "Stop Alerts") {
     await disableTelegramAlertChat(chat.id);
     await sendTelegramMessage(chat.id, "Telegram alerts have been turned off for this chat.", {
-      reply_markup: menuKeyboard,
+      reply_markup: inactiveMenuKeyboard,
     });
     return;
   }
@@ -466,13 +579,14 @@ async function handleTelegramMessage(message) {
   if (verifyTelegramPasscode(text) || verifyTelegramPasscode(text.replace(/^\/login(@\w+)?\s*/i, ""))) {
     await upsertTelegramAlertChat(chat);
     await sendTelegramMessage(chat.id, "Telegram alerts are active for Jack The Reaper.", {
-      reply_markup: menuKeyboard,
+      reply_markup: activeMenuKeyboard,
     });
     return;
   }
 
+  const isActive = await isTelegramAlertChatActive(chat.id);
   await sendTelegramMessage(chat.id, "Use the buttons below to manage alerts.", {
-    reply_markup: menuKeyboard,
+    reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard,
   });
 }
 
