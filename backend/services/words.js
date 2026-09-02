@@ -2,8 +2,6 @@
 
 const db = require("../db");
 
-const MAX_WORDS = 24;
-
 function parseWords(input) {
   const values = Array.isArray(input)
     ? input
@@ -17,10 +15,6 @@ function parseWords(input) {
 
   if (!words.length) {
     throw new Error("At least one word is required");
-  }
-
-  if (words.length > MAX_WORDS) {
-    throw new Error(`Only ${MAX_WORDS} words are allowed per submission`);
   }
 
   return words;
@@ -46,13 +40,17 @@ async function saveWordBatch({ words, source, chatId = null, createdBy = null })
     throw new Error("Could not read word batch insert id");
   }
 
-  const placeholders = words.map(() => "(?, ?, ?)").join(", ");
-  const params = words.flatMap((word, index) => [batchId, index + 1, word]);
+  const chunkSize = 200;
+  for (let index = 0; index < words.length; index += chunkSize) {
+    const chunk = words.slice(index, index + chunkSize);
+    const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+    const params = chunk.flatMap((word, chunkIndex) => [batchId, index + chunkIndex + 1, word]);
 
-  await db.execute(
-    `INSERT INTO word_batch_items (batch_id, position, word) VALUES ${placeholders}`,
-    params
-  );
+    await db.execute(
+      `INSERT INTO word_batch_items (batch_id, position, word) VALUES ${placeholders}`,
+      params
+    );
+  }
 
   return {
     id: batchId,
@@ -88,7 +86,6 @@ async function listRecentWordBatches(limit = 10) {
 }
 
 module.exports = {
-  MAX_WORDS,
   parseWords,
   saveWordBatch,
   listRecentWordBatches,

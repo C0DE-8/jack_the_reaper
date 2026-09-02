@@ -1,6 +1,7 @@
 (function () {
+  const API_URL = window.JTR_API_URL || "https://jack-the-reaper.vercel.app";
   const api = axios.create({
-    baseURL: window.location.origin,
+    baseURL: API_URL,
     timeout: 15000,
     headers: {
       "Content-Type": "application/json",
@@ -12,6 +13,7 @@
   }
 
   window.wordApi = {
+    apiUrl: API_URL,
     async sendWords(text) {
       try {
         const response = await api.post("/words", { text });

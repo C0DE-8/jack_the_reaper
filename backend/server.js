@@ -48,6 +48,14 @@ app.get(["/db/ping", "/api/db/ping"], async (req, res) => {
   }
 });
 
+app.use((error, req, res, next) => {
+  console.error(error);
+  res.status(error.status || 500).json({
+    ok: false,
+    error: error.message || "Server error",
+  });
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`${SERVICE_NAME} listening on port ${PORT}`);

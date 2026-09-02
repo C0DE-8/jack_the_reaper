@@ -108,12 +108,11 @@
         <textarea
           id="words"
           name="words"
-          maxlength="600"
           placeholder="one goat cat 1 2 3 4 5"
           autocomplete="off"
         ></textarea>
         <div class="row">
-          <span class="counter"><span id="word-count">0</span>/24 words</span>
+          <span class="counter"><span id="word-count">0</span> words</span>
           <button id="submit" type="submit">Send</button>
         </div>
         <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -144,9 +143,8 @@
       function updateCount() {
         const count = wordsFrom(textarea.value).length;
         counter.textContent = String(count);
-        button.disabled = count < 1 || count > 24;
-        if (count > 24) setStatus("Send 24 words or fewer.", "error");
-        else if (status.dataset.state === "error") setStatus("");
+        button.disabled = count < 1;
+        if (status.dataset.state === "error") setStatus("");
       }
 
       textarea.addEventListener("input", updateCount);

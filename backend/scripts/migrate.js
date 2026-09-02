@@ -14,12 +14,15 @@ function statementsFrom(sql) {
 }
 
 async function run() {
-  const sqlPath = path.join(__dirname, "..", "sql", "001_words_and_telegram.sql");
-  const sql = fs.readFileSync(sqlPath, "utf8");
+  const sqlDir = path.join(__dirname, "..", "sql");
+  const files = fs.readdirSync(sqlDir).filter((file) => file.endsWith(".sql")).sort();
 
-  for (const statement of statementsFrom(sql)) {
-    await db.execute(statement);
-    console.log(`Migrated: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
+  for (const file of files) {
+    const sql = fs.readFileSync(path.join(sqlDir, file), "utf8");
+    for (const statement of statementsFrom(sql)) {
+      await db.execute(statement);
+      console.log(`Migrated ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
+    }
   }
 }
 

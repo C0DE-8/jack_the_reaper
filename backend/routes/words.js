@@ -1,8 +1,8 @@
 "use strict";
 
 const express = require("express");
-const telegramRouter = require("./telegram");
-const { MAX_WORDS, listRecentWordBatches, parseWords, saveWordBatch } = require("../services/words");
+const { sendTelegramAlert } = require("../telegram");
+const { listRecentWordBatches, parseWords, saveWordBatch } = require("../services/words");
 
 const router = express.Router();
 
@@ -28,16 +28,19 @@ router.post("/", async (req, res) => {
 
     const notification = [
       `New public word message #${batch.id}`,
-      `${batch.wordCount}/${MAX_WORDS} words`,
+      `${batch.wordCount} words`,
       batch.words.join(" "),
     ].join("\n");
 
-    const telegram = await telegramRouter.notifyAdmins(notification);
+    const sent = await sendTelegramAlert(notification);
 
     res.status(201).json({
       ok: true,
       batch,
-      telegram,
+      telegram: {
+        sent,
+        message: sent ? "Message sent to Telegram admins." : "No active Telegram admin chats are registered yet.",
+      },
     });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });

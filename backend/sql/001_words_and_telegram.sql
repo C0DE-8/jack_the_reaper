@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS word_batches (
   source VARCHAR(32) NOT NULL,
   chat_id VARCHAR(64) NULL,
   created_by VARCHAR(255) NULL,
-  word_count TINYINT UNSIGNED NOT NULL,
+  word_count INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_word_batches_created_at (created_at),
   INDEX idx_word_batches_chat_id (chat_id)
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS word_batches (
 CREATE TABLE IF NOT EXISTS word_batch_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   batch_id BIGINT UNSIGNED NOT NULL,
-  position TINYINT UNSIGNED NOT NULL,
+  position INT UNSIGNED NOT NULL,
   word VARCHAR(255) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_word_batch_position (batch_id, position),
