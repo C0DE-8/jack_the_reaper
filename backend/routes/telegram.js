@@ -2,6 +2,7 @@
 
 const express = require("express");
 const db = require("../db");
+const { MAX_WORDS, parseWords, saveWordBatch } = require("../services/words");
 
 const router = express.Router();
 const authorizedChats = new Set();
@@ -42,6 +43,10 @@ function getText(message) {
 
 function isAuthorized(chatId) {
   return chatId && authorizedChats.has(String(chatId));
+}
+
+function userFrom(message) {
+  return message.from || {};
 }
 
 async function telegramApi(method, payload) {
@@ -99,12 +104,92 @@ async function askForPassword(chatId) {
   });
 }
 
+async function saveAdminChat(message) {
+  const chatId = getChatId(message);
+  const user = userFrom(message);
+  if (!chatId) return;
+
+  await db.execute(
+    `
+    INSERT INTO telegram_admin_chats
+      (chat_id, telegram_user_id, username, first_name, last_name, authorized, last_login_at)
+    VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      telegram_user_id = VALUES(telegram_user_id),
+      username = VALUES(username),
+      first_name = VALUES(first_name),
+      last_name = VALUES(last_name),
+      authorized = 1,
+      last_login_at = CURRENT_TIMESTAMP
+    `,
+    [
+      chatId,
+      user.id ? String(user.id) : null,
+      user.username || null,
+      user.first_name || null,
+      user.last_name || null,
+    ]
+  );
+}
+
+async function clearAdminChat(chatId) {
+  await db.execute("UPDATE telegram_admin_chats SET authorized = 0 WHERE chat_id = ?", [chatId]);
+}
+
+async function savedAdminChatIds() {
+  const rows = await db.query("SELECT chat_id AS chatId FROM telegram_admin_chats WHERE authorized = 1");
+  return rows.map((row) => String(row.chatId || row.chat_id)).filter(Boolean);
+}
+
+async function notifyAdmins(text) {
+  const chatIds = new Set([...authorizedChats]);
+
+  try {
+    for (const chatId of await savedAdminChatIds()) {
+      chatIds.add(chatId);
+    }
+  } catch (error) {
+    console.error("Could not load saved Telegram admin chats:", error.message);
+  }
+
+  const results = [];
+  for (const chatId of chatIds) {
+    try {
+      await reply(chatId, text);
+      results.push({ chatId, ok: true });
+    } catch (error) {
+      results.push({ chatId, ok: false, error: error.message });
+    }
+  }
+
+  return {
+    sent: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
+}
+
+async function saveWordsFromTelegram(chatId, text, message) {
+  const wordText = text.replace(/^\/words(@\w+)?\s*/i, "").trim();
+  const words = parseWords(wordText);
+  const user = userFrom(message);
+  const batch = await saveWordBatch({
+    words,
+    source: "telegram",
+    chatId,
+    createdBy: user.username || user.id || "telegram-admin",
+  });
+
+  await reply(chatId, `Saved word batch #${batch.id}: ${batch.wordCount}/${MAX_WORDS} words\n${words.join(" ")}`);
+}
+
 async function handleAdminCommand(chatId, text, message) {
   if (text === "/help" || text === "/help@word_bot") {
     await reply(
       chatId,
       [
         "Admin commands:",
+        "/words word1 word2 ... - save up to 24 words",
         "/health - check DBMS Gateway status",
         "/db_ping - run SELECT 1 through DBMS Gateway",
         "/whoami - show this Telegram chat id",
@@ -133,7 +218,13 @@ async function handleAdminCommand(chatId, text, message) {
 
   if (text === "/logout" || text === "/logout@word_bot") {
     authorizedChats.delete(chatId);
+    await clearAdminChat(chatId);
     await reply(chatId, "Logged out. Send /start to unlock admin access again.");
+    return;
+  }
+
+  if (text.startsWith("/words") || !text.startsWith("/")) {
+    await saveWordsFromTelegram(chatId, text, message);
     return;
   }
 
@@ -161,6 +252,7 @@ async function handleMessage(message) {
   if (!isAuthorized(chatId)) {
     if (loginPasswordFrom(text) === configuredPassword) {
       authorizedChats.add(chatId);
+      await saveAdminChat(message);
       await reply(chatId, "Admin access granted. Send /help.");
       return;
     }
@@ -225,3 +317,4 @@ router.post("/set-webhook", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.notifyAdmins = notifyAdmins;
