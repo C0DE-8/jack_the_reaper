@@ -10,7 +10,11 @@ function isAdminRequest(req) {
   const password = process.env.ADMIN_PASSWORD;
   if (!password) return false;
 
-  return req.get("x-admin-password") === password || req.body?.password === password;
+  return (
+    req.get("x-admin-password") === password ||
+    req.body?.password === password ||
+    req.query?.password === password
+  );
 }
 
 router.post("/", async (req, res) => {
