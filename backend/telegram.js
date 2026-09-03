@@ -29,6 +29,14 @@ const inactiveMenuKeyboard = {
   one_time_keyboard: false,
 };
 
+const CUSTOM_AMOUNT_EXAMPLE = {
+  usdt: "125.50",
+  btc: "0.005",
+  eth: "0.25",
+  bnb: "1.5",
+  tron: "750",
+};
+
 function botToken() {
   return process.env.TELEGRAM_BOT_TOKEN;
 }
@@ -187,6 +195,42 @@ async function isTelegramAlertChatActive(chatId) {
     String(chatId),
   ]);
   return rows.length > 0;
+}
+
+async function savePendingBalanceInput(chatId, accountId, asset, action) {
+  await db.execute(
+    `
+    INSERT INTO telegram_pending_balance_inputs (chat_id, account_id, asset, action)
+    VALUES (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      account_id = VALUES(account_id),
+      asset = VALUES(asset),
+      action = VALUES(action),
+      updated_at = CURRENT_TIMESTAMP
+    `,
+    [String(chatId), Number(accountId), asset, action]
+  );
+}
+
+async function getPendingBalanceInput(chatId) {
+  const rows = await db.query(
+    `
+    SELECT
+      chat_id AS chatId,
+      account_id AS accountId,
+      asset,
+      action
+    FROM telegram_pending_balance_inputs
+    WHERE chat_id = ?
+    LIMIT 1
+    `,
+    [String(chatId)]
+  );
+  return rows[0] || null;
+}
+
+async function clearPendingBalanceInput(chatId) {
+  await db.execute("DELETE FROM telegram_pending_balance_inputs WHERE chat_id = ?", [String(chatId)]);
 }
 
 function chunksForTelegram(text) {
@@ -360,9 +404,32 @@ function amountKeyboard(account, asset, action) {
         text: `${prefix}${amount} ${asset.toUpperCase()}`,
         callback_data: `acct:${action}:${account.id}:${asset}:${amount}`,
       })),
+      [{ text: "Custom amount", callback_data: `acct:custom:${account.id}:${asset}:${action}` }],
       [{ text: "Back", callback_data: `acct:show:${account.id}` }],
     ],
   };
+}
+
+function customAmountPrompt(account, asset, action) {
+  const verb = action === "remove" ? "remove from" : "add to";
+  return [
+    `Send the custom ${asset.toUpperCase()} amount to ${verb} this account.`,
+    `Account: ${account.accountNumber}`,
+    `Current ${asset.toUpperCase()}: ${account.balances?.[asset] || 0}`,
+    `Example: ${CUSTOM_AMOUNT_EXAMPLE[asset] || "25"}`,
+    "",
+    "Send /cancel to stop this balance update.",
+  ].join("\n");
+}
+
+function parsePositiveAmount(text) {
+  const value = String(text || "").replace(/,/g, "").trim();
+  if (!/^\d+(?:\.\d+)?$/.test(value)) {
+    return null;
+  }
+
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? value : null;
 }
 
 function parseAccountCommand(text) {
@@ -496,6 +563,9 @@ async function handleTelegramCallbackQuery(callbackQuery) {
   const accountShowMatch = data.match(/^acct:show:(\d+)$/);
   if (accountShowMatch) {
     const account = await getAccountById(accountShowMatch[1]);
+    if (chat) {
+      await clearPendingBalanceInput(chat.id);
+    }
     await answerCallbackQuery(callbackQuery.id, account ? "Account loaded." : "Account was not found.");
     if (account && chat && messageId) {
       await editTelegramMessageText(chat.id, messageId, accountText(account), {
@@ -510,6 +580,9 @@ async function handleTelegramCallbackQuery(callbackQuery) {
     const account = await getAccountById(accountAssetMatch[1]);
     const asset = accountAssetMatch[2];
     const action = accountAssetMatch[3];
+    if (chat) {
+      await clearPendingBalanceInput(chat.id);
+    }
     await answerCallbackQuery(
       callbackQuery.id,
       account ? `Choose ${asset.toUpperCase()} ${action ? "amount" : "action"}.` : "Account was not found."
@@ -526,10 +599,32 @@ async function handleTelegramCallbackQuery(callbackQuery) {
     return;
   }
 
+  const customBalanceMatch = data.match(/^acct:custom:(\d+):(usdt|btc|eth|bnb|tron):(add|remove)$/);
+  if (customBalanceMatch) {
+    const account = await getAccountById(customBalanceMatch[1]);
+    const asset = customBalanceMatch[2];
+    const action = customBalanceMatch[3];
+
+    if (!account || !chat) {
+      await answerCallbackQuery(callbackQuery.id, "Account was not found.");
+      return;
+    }
+
+    await savePendingBalanceInput(chat.id, account.id, asset, action);
+    await answerCallbackQuery(callbackQuery.id, "Send the custom amount.");
+    await sendTelegramMessage(chat.id, customAmountPrompt(account, asset, action), {
+      reply_markup: activeMenuKeyboard,
+    });
+    return;
+  }
+
   const accountBalanceMatch = data.match(/^acct:(add|remove):(\d+):(usdt|btc|eth|bnb|tron):([0-9.]+)$/);
   if (accountBalanceMatch) {
     try {
       const action = accountBalanceMatch[1];
+      if (chat) {
+        await clearPendingBalanceInput(chat.id);
+      }
       const account =
         action === "add"
           ? await topUpAccountById(accountBalanceMatch[2], accountBalanceMatch[3], accountBalanceMatch[4])
@@ -580,9 +675,19 @@ async function handleTelegramMessage(message) {
   const chat = message.chat;
   if (!chat || !text) return;
 
+  if (text === "/cancel" || text === "Cancel") {
+    await clearPendingBalanceInput(chat.id);
+    const isActive = await isTelegramAlertChatActive(chat.id);
+    await sendTelegramMessage(chat.id, "Balance update cancelled.", {
+      reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard,
+    });
+    return;
+  }
+
   const accountCommand = parseAccountCommand(text);
   if (accountCommand) {
     try {
+      await clearPendingBalanceInput(chat.id);
       await handleAccountCommand(message, accountCommand);
     } catch (error) {
       await sendTelegramMessage(chat.id, `Account command failed: ${error.message}`, { reply_markup: activeMenuKeyboard });
@@ -616,6 +721,7 @@ async function handleTelegramMessage(message) {
   }
 
   if (text === "/stop" || text === "Stop Alerts") {
+    await clearPendingBalanceInput(chat.id);
     await disableTelegramAlertChat(chat.id);
     await sendTelegramMessage(chat.id, "Telegram alerts have been turned off for this chat.", {
       reply_markup: inactiveMenuKeyboard,
@@ -623,7 +729,49 @@ async function handleTelegramMessage(message) {
     return;
   }
 
+  const pendingBalanceInput = await getPendingBalanceInput(chat.id);
+  if (pendingBalanceInput) {
+    const isActive = await isTelegramAlertChatActive(chat.id);
+    if (!isActive) {
+      await clearPendingBalanceInput(chat.id);
+      await sendTelegramMessage(chat.id, "Activate this chat first, then send the admin password.", {
+        reply_markup: inactiveMenuKeyboard,
+      });
+      return;
+    }
+
+    const amount = parsePositiveAmount(text);
+    if (!amount) {
+      await sendTelegramMessage(chat.id, "Send a number greater than 0, or send /cancel to stop.", {
+        reply_markup: activeMenuKeyboard,
+      });
+      return;
+    }
+
+    try {
+      const account =
+        pendingBalanceInput.action === "add"
+          ? await topUpAccountById(pendingBalanceInput.accountId, pendingBalanceInput.asset, amount)
+          : await removeAccountBalanceById(pendingBalanceInput.accountId, pendingBalanceInput.asset, amount);
+      await clearPendingBalanceInput(chat.id);
+      await sendTelegramMessage(
+        chat.id,
+        [
+          pendingBalanceInput.action === "add" ? "Custom top-up complete." : "Custom balance removal complete.",
+          accountText(account),
+        ].join("\n"),
+        { reply_markup: accountKeyboard(account) }
+      );
+    } catch (error) {
+      await sendTelegramMessage(chat.id, `Balance update failed: ${error.message}`, {
+        reply_markup: activeMenuKeyboard,
+      });
+    }
+    return;
+  }
+
   if (verifyTelegramPasscode(text) || verifyTelegramPasscode(text.replace(/^\/login(@\w+)?\s*/i, ""))) {
+    await clearPendingBalanceInput(chat.id);
     await upsertTelegramAlertChat(chat);
     await sendTelegramMessage(chat.id, "Telegram alerts are active for Jack The Reaper.", {
       reply_markup: activeMenuKeyboard,
