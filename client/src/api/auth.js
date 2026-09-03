@@ -2,24 +2,16 @@ const ADMIN_EMAIL = 'admin@admin.com'
 const ADMIN_PASSWORD = '123456'
 const AUTH_KEY = 'word_admin_auth'
 
-export function loginAdmin(email, password) {
-  const validEmail = String(email || '').trim().toLowerCase() === ADMIN_EMAIL
-  const validPassword = String(password || '') === ADMIN_PASSWORD
-
-  if (!validEmail || !validPassword) {
-    return { ok: false, error: 'Invalid admin email or password' }
-  }
-
+export function saveAdminSession(admin, password) {
   localStorage.setItem(
     AUTH_KEY,
     JSON.stringify({
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
+      email: admin?.email || ADMIN_EMAIL,
+      name: admin?.name || 'Admin',
+      password: password || ADMIN_PASSWORD,
       loggedInAt: new Date().toISOString(),
     }),
   )
-
-  return { ok: true }
 }
 
 export function logoutAdmin() {
@@ -39,6 +31,10 @@ export function getAdminSession() {
 
 export function getAdminPassword() {
   return getAdminSession()?.password || ''
+}
+
+export function getAdminEmail() {
+  return getAdminSession()?.email || ''
 }
 
 export function isAdminAuthenticated() {

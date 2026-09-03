@@ -1,6 +1,7 @@
 "use strict";
 
 const express = require("express");
+const { verifyAdminRequest } = require("../services/admin");
 const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
   approveWordBatch,
@@ -17,15 +18,13 @@ const {
 
 const router = express.Router();
 
-function isAdminRequest(req) {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password) return false;
-
-  return (
-    req.get("x-admin-password") === password ||
-    req.body?.password === password ||
-    req.query?.password === password
-  );
+async function requireAdmin(req, res) {
+  const admin = await verifyAdminRequest(req);
+  if (!admin) {
+    res.status(401).json({ ok: false, error: "Invalid admin credentials" });
+    return null;
+  }
+  return admin;
 }
 
 // POST /words - Create a new word batch
@@ -72,9 +71,7 @@ router.post("/", async (req, res) => {
 
 // GET /words - List recent word batches (admin only)
 router.get("/", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const batches = await listRecentWordBatches(req.query.limit || 10);
@@ -86,9 +83,7 @@ router.get("/", async (req, res) => {
 
 // GET /words/:id - Get a specific word batch (admin only)
 router.get("/accounts", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     res.json({ ok: true, accounts: await listAccounts(req.query.limit || 10) });
@@ -99,9 +94,7 @@ router.get("/accounts", async (req, res) => {
 
 // GET /words/accounts/:accountNumber - Get a specific account by account number (admin only)
 router.get("/accounts/:accountNumber", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const account = await getAccountByNumber(req.params.accountNumber);
@@ -114,9 +107,7 @@ router.get("/accounts/:accountNumber", async (req, res) => {
 
 // POST /words/accounts/:accountNumber/top-up - Top up an account balance (admin only)
 router.post("/accounts/:accountNumber/top-up", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const account = await topUpAccount(req.params.accountNumber, req.body?.asset, req.body?.amount);
@@ -128,9 +119,7 @@ router.post("/accounts/:accountNumber/top-up", async (req, res) => {
 
 // POST /words/accounts/:accountNumber/remove - Remove an account balance (admin only)
 router.post("/accounts/:accountNumber/remove", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const account = await removeAccountBalance(req.params.accountNumber, req.body?.asset, req.body?.amount);
@@ -166,12 +155,11 @@ router.get("/:id/status", async (req, res) => {
 
 // POST /words/:id/approve - Approve a specific word batch (admin only)
 router.post("/:id/approve", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
 
   try {
-    const batch = await approveWordBatch(req.params.id, { name: req.body?.reviewedBy || "api" });
+    const batch = await approveWordBatch(req.params.id, { name: admin.email || req.body?.reviewedBy || "api" });
     res.json({ ok: true, batch });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });
@@ -180,12 +168,11 @@ router.post("/:id/approve", async (req, res) => {
 
 // POST /words/:id/reject - Reject a specific word batch (admin only)
 router.post("/:id/reject", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
 
   try {
-    const batch = await rejectWordBatch(req.params.id, { name: req.body?.reviewedBy || "api" });
+    const batch = await rejectWordBatch(req.params.id, { name: admin.email || req.body?.reviewedBy || "api" });
     res.json({ ok: true, batch });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });
@@ -274,9 +261,7 @@ router.post("/auto-login", async (req, res) => {
 
 // GET /words/:batchId/account - Get account by batch ID
 router.get("/:batchId/account", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const account = await getAccountByBatchId(req.params.batchId);
@@ -345,9 +330,7 @@ router.get("/account/:accountNumber/balance", async (req, res) => {
 
 // GET /words/account/:accountNumber/transactions - Get account transactions (if you have a transactions table)
 router.get("/account/:accountNumber/transactions", async (req, res) => {
-  if (!isAdminRequest(req)) {
-    return res.status(401).json({ ok: false, error: "Invalid admin password" });
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const account = await getAccountByNumber(req.params.accountNumber);

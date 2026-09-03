@@ -391,8 +391,15 @@ td strong,
   border: 1px solid #ffc7c7;
 }
 
+.alert.success {
+  color: #176448;
+  background: #dcf7e9;
+  border: 1px solid #b7ebcf;
+}
+
 .input-field,
-.balance-form label {
+.balance-form label,
+.profile-form label {
   display: grid;
   gap: 8px;
   color: #475467;
@@ -448,6 +455,23 @@ select {
   gap: 10px;
 }
 
+.profile-panel {
+  max-width: 720px;
+}
+
+.profile-form {
+  display: grid;
+  gap: 16px;
+}
+
+.profile-form input {
+  padding: 0 12px;
+}
+
+.profile-form .primary-button {
+  width: fit-content;
+}
+
 .account-list {
   display: grid;
   gap: 12px;
@@ -483,7 +507,7 @@ select {
   }
 
   .nav-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .sidebar-action {

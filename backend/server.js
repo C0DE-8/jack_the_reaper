@@ -6,6 +6,7 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 require("dotenv").config();
 
 const db = require("./db");
+const adminRouter = require("./routes/admin");
 const telegramRouter = require("./routes/telegram");
 const wordsRouter = require("./routes/words");
 
@@ -15,6 +16,8 @@ const SERVICE_NAME = "word backend";
 
 app.use(cors());
 app.use(express.json());
+app.use("/admin", adminRouter);
+app.use("/api/admin", adminRouter);
 app.use("/telegram", telegramRouter);
 app.use("/api/telegram", telegramRouter);
 app.use("/words", wordsRouter);
