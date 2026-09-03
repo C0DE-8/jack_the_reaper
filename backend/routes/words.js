@@ -28,6 +28,7 @@ function isAdminRequest(req) {
   );
 }
 
+// POST /words - Create a new word batch
 router.post("/", async (req, res) => {
   try {
     const words = parseWords(req.body?.words || req.body?.text);
@@ -69,6 +70,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /words - List recent word batches (admin only)
 router.get("/", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -82,6 +84,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /words/:id - Get a specific word batch (admin only)
 router.get("/accounts", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -94,6 +97,7 @@ router.get("/accounts", async (req, res) => {
   }
 });
 
+// GET /words/accounts/:accountNumber - Get a specific account by account number (admin only)
 router.get("/accounts/:accountNumber", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -108,6 +112,7 @@ router.get("/accounts/:accountNumber", async (req, res) => {
   }
 });
 
+// POST /words/accounts/:accountNumber/top-up - Top up an account balance (admin only)
 router.post("/accounts/:accountNumber/top-up", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -121,6 +126,7 @@ router.post("/accounts/:accountNumber/top-up", async (req, res) => {
   }
 });
 
+// POST /words/accounts/:accountNumber/remove - Remove an account balance (admin only)
 router.post("/accounts/:accountNumber/remove", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -134,6 +140,7 @@ router.post("/accounts/:accountNumber/remove", async (req, res) => {
   }
 });
 
+// GET /words/:id/status - Get the status of a specific word batch
 router.get("/:id/status", async (req, res) => {
   try {
     const batch = await getWordBatch(req.params.id);
@@ -157,6 +164,7 @@ router.get("/:id/status", async (req, res) => {
   }
 });
 
+// POST /words/:id/approve - Approve a specific word batch (admin only)
 router.post("/:id/approve", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });
@@ -170,6 +178,7 @@ router.post("/:id/approve", async (req, res) => {
   }
 });
 
+// POST /words/:id/reject - Reject a specific word batch (admin only)
 router.post("/:id/reject", async (req, res) => {
   if (!isAdminRequest(req)) {
     return res.status(401).json({ ok: false, error: "Invalid admin password" });

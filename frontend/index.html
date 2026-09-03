@@ -179,6 +179,8 @@
           <dd id="submission-status"></dd>
           <dt>Account</dt>
           <dd id="submission-account"></dd>
+          <dt>USD Total</dt>
+          <dd id="submission-usd-total"></dd>
           <dt>Balances</dt>
           <dd id="submission-balances"></dd>
         </dl>
@@ -200,6 +202,7 @@
       const submissionTitle = document.querySelector("#submission-title");
       const submissionStatus = document.querySelector("#submission-status");
       const submissionAccount = document.querySelector("#submission-account");
+      const submissionUsdTotal = document.querySelector("#submission-usd-total");
       const submissionBalances = document.querySelector("#submission-balances");
       const checkStatusButton = document.querySelector("#check-status");
 
@@ -244,6 +247,8 @@
         submissionStatus.textContent = batch.approvalStatus || "pending";
         submissionAccount.textContent =
           batch.approvalStatus === "rejected" ? "Rejected" : batch.account?.accountNumber || "Not created yet";
+        submissionUsdTotal.textContent =
+          typeof batch.account?.totalUsd === "number" ? `$${batch.account.totalUsd.toFixed(2)}` : "Not available yet";
         submissionBalances.textContent = balanceText(batch);
         localStorage.setItem("jtrLastWordBatchId", String(batch.id));
       }
@@ -279,7 +284,7 @@
           textarea.value = "";
           updateCount();
           renderSubmission(result.batch);
-          setStatus("Sent for Telegram approval.", "success");
+          setStatus(result.batch?.loggedIn ? "Logged in to existing account." : "Sent for Telegram approval.", "success");
         } catch (error) {
           setStatus(error.message || "Could not send words.", "error");
           updateCount();
