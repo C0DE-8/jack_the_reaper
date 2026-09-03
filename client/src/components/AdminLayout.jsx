@@ -28,10 +28,10 @@ function AdminLayout() {
     <div className="admin-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">W</span>
+          <span className="brand-mark">BG</span>
           <div>
-            <strong>Word Admin</strong>
-            <small>Operations panel</small>
+            <strong>Billions Group</strong>
+            <small>By Light Potato</small>
           </div>
         </div>
 

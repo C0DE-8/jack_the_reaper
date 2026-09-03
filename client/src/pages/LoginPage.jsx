@@ -31,8 +31,8 @@ function LoginPage() {
       <section className="login-panel">
         <div className="login-copy">
           <span className="eyebrow">Secure admin</span>
-          <h1>Word approval control center</h1>
-          <p>Review submitted word batches, approve accounts, and manage crypto balances.</p>
+          <h1>Billions Group of Company</h1>
+          <p>Admin operations dashboard for approvals, accounts, and balances. Built by Light Potato.</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
