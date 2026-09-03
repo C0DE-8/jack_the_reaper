@@ -391,6 +391,10 @@ function assetActionKeyboard(account, asset) {
         { text: "Add", callback_data: `acct:asset:${account.id}:${asset}:add` },
         { text: "Remove", callback_data: `acct:asset:${account.id}:${asset}:remove` },
       ],
+      [
+        { text: "Custom Add", callback_data: `acct:custom:${account.id}:${asset}:add` },
+        { text: "Custom Remove", callback_data: `acct:custom:${account.id}:${asset}:remove` },
+      ],
       [{ text: "Back", callback_data: `acct:show:${account.id}` }],
     ],
   };
@@ -400,11 +404,11 @@ function amountKeyboard(account, asset, action) {
   const prefix = action === "remove" ? "-" : "+";
   return {
     inline_keyboard: [
+      [{ text: "Custom amount", callback_data: `acct:custom:${account.id}:${asset}:${action}` }],
       topUpAmountOptions(asset).map((amount) => ({
         text: `${prefix}${amount} ${asset.toUpperCase()}`,
         callback_data: `acct:${action}:${account.id}:${asset}:${amount}`,
       })),
-      [{ text: "Custom amount", callback_data: `acct:custom:${account.id}:${asset}:${action}` }],
       [{ text: "Back", callback_data: `acct:show:${account.id}` }],
     ],
   };
