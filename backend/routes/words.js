@@ -192,4 +192,181 @@ router.post("/:id/reject", async (req, res) => {
   }
 });
 
+// GET /words/auto-login - Auto-login user by word list
+router.post("/auto-login", async (req, res) => {
+  try {
+    const { words } = req.body;
+    
+    if (!words || typeof words !== 'string') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Words are required" 
+      });
+    }
+
+    const parsedWords = parseWords(words);
+    
+    if (parsedWords.length === 0) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "No valid words provided" 
+      });
+    }
+
+    // Check if word batch exists with these words
+    const batch = await getWordBatchByWords(parsedWords);
+    
+    if (!batch) {
+      return res.status(404).json({ 
+        ok: false, 
+        error: "No account found with the provided words" 
+      });
+    }
+
+    // Check if batch is approved
+    if (batch.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        ok: false, 
+        error: `Account is ${batch.approvalStatus}. Please wait for approval.` 
+      });
+    }
+
+    // Get account details for this batch
+    const account = await getAccountByBatchId(batch.id);
+    
+    if (!account) {
+      return res.status(404).json({ 
+        ok: false, 
+        error: "Account not found for this batch" 
+      });
+    }
+
+    // Get recent transactions or activity (optional)
+    // const recentActivity = await getRecentActivityByBatchId(batch.id, 10);
+
+    res.json({
+      ok: true,
+      account: {
+        id: account.id,
+        accountNumber: account.accountNumber,
+        title: account.title || batch.title,
+        balances: {
+          usdt: account.usdt_balance,
+          btc: account.btc_balance,
+          eth: account.eth_balance,
+          bnb: account.bnb_balance,
+          tron: account.tron_balance,
+        },
+        batch: {
+          id: batch.id,
+          title: batch.title,
+          wordCount: batch.wordCount,
+          approvalStatus: batch.approvalStatus,
+          createdAt: batch.createdAt,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Auto-login error:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// GET /words/:batchId/account - Get account by batch ID
+router.get("/:batchId/account", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    const account = await getAccountByBatchId(req.params.batchId);
+    
+    if (!account) {
+      return res.status(404).json({ ok: false, error: "Account was not found for this batch" });
+    }
+
+    res.json({
+      ok: true,
+      account: {
+        id: account.id,
+        accountNumber: account.accountNumber,
+        title: account.title,
+        balances: {
+          usdt: account.usdt_balance,
+          btc: account.btc_balance,
+          eth: account.eth_balance,
+          bnb: account.bnb_balance,
+          tron: account.tron_balance,
+        },
+        createdAt: account.createdAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// GET /words/account/:accountNumber/balance - Get account balance by account number
+router.get("/account/:accountNumber/balance", async (req, res) => {
+  try {
+    const account = await getAccountByNumber(req.params.accountNumber);
+    
+    if (!account) {
+      return res.status(404).json({ ok: false, error: "Account was not found" });
+    }
+
+    // Check if batch is approved
+    const batch = await getWordBatch(account.batch_id);
+    if (!batch || batch.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Account is not yet approved or does not exist" 
+      });
+    }
+
+    res.json({
+      ok: true,
+      account: {
+        accountNumber: account.accountNumber,
+        title: account.title,
+        balances: {
+          usdt: account.usdt_balance,
+          btc: account.btc_balance,
+          eth: account.eth_balance,
+          bnb: account.bnb_balance,
+          tron: account.tron_balance,
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// GET /words/account/:accountNumber/transactions - Get account transactions (if you have a transactions table)
+router.get("/account/:accountNumber/transactions", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ ok: false, error: "Invalid admin password" });
+  }
+
+  try {
+    const account = await getAccountByNumber(req.params.accountNumber);
+    
+    if (!account) {
+      return res.status(404).json({ ok: false, error: "Account was not found" });
+    }
+
+    // If you have a transactions table, you can add logic here
+    // const transactions = await getTransactionsByAccountNumber(req.params.accountNumber, req.query.limit || 50);
+    
+    res.json({
+      ok: true,
+      accountNumber: req.params.accountNumber,
+      transactions: [] // Placeholder for transactions
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 module.exports = router;
