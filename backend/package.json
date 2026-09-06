@@ -4,10 +4,12 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "check": "node --check server.js && node --check db.js && node --check telegram.js && node --check routes/telegram.js && node --check routes/words.js && node --check services/words.js && node --check scripts/migrate.js",
+    "check": "node --check server.js && node --check db.js && node --check telegram.js && node --check routes/telegram.js && node --check routes/words.js && node --check services/words.js && node --check scripts/migrate.js && node --check routes/activity.js && node --check services/activity.js && node --check services/activityTelegram.js",
     "migrate": "node scripts/migrate.js",
-    "test": "npm run check",
-    "start": "node server.js"
+    "test": "npm run check && node --test test/*.test.js",
+    "start": "node server.js",
+    "activity:worker": "node scripts/activity-worker.js",
+    "test:integration": "node test/integration.js"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +19,10 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "geoip-lite": "^1.4.10",
     "mysql2": "^3.14.5"
+  },
+  "overrides": {
+    "ip-address": "^10.7.0"
   }
 }

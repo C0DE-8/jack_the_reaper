@@ -63,7 +63,9 @@ async function verifyAdminCredentials(email, password) {
   try {
     const admin = await findAdminByEmail(normalizedEmail);
     if (admin && admin.passwordHash === hashPassword(normalizedPassword)) {
-      return publicAdmin(admin);
+      const [operator] = await db.query('SELECT role, active FROM operators WHERE admin_id=?', [admin.id]);
+      if (operator && !operator.active) return null;
+      return { ...publicAdmin(admin), role: operator?.role || null };
     }
   } catch (error) {
     if (!/admin_users/i.test(error.message || "")) {
@@ -89,7 +91,12 @@ async function verifyAdminRequest(req) {
   const email = req.get("x-admin-email") || req.body?.email || req.query?.email || DEFAULT_ADMIN_EMAIL;
   const password = req.get("x-admin-password") || req.body?.password || req.query?.password;
   if (!password) return null;
-  return verifyAdminCredentials(email, password);
+  const admin = await verifyAdminCredentials(email, password);
+  if (admin?.id) {
+    const [operator] = await db.query("SELECT role, active FROM operators WHERE admin_id=?", [admin.id]);
+    if (operator && (!operator.active || operator.role !== "level1")) return null;
+  }
+  return admin;
 }
 
 async function updateAdminProfile(currentEmail, currentPassword, updates = {}) {

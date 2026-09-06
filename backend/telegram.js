@@ -452,7 +452,7 @@ async function handleAccountCommand(message, command) {
   const chat = message.chat;
   const isActive = await isTelegramAlertChatActive(chat.id);
   if (!isActive) {
-    await sendTelegramMessage(chat.id, "Activate this chat first, then send the admin password.", {
+    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
       reply_markup: inactiveMenuKeyboard,
     });
     return;
@@ -675,6 +675,7 @@ async function getTelegramStatus(value) {
 }
 
 async function handleTelegramMessage(message) {
+  if (await require("./services/activityTelegram").enroll(message)) return;
   const text = String(message.text || "").trim();
   const chat = message.chat;
   if (!chat || !text) return;
@@ -701,14 +702,14 @@ async function handleTelegramMessage(message) {
 
   if (text === "/start") {
     const isActive = await isTelegramAlertChatActive(chat.id);
-    await sendTelegramMessage(chat.id, "Choose an alert option. Use Activate Alerts, then send the admin password.", {
+    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
       reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard,
     });
     return;
   }
 
   if (text === "Activate Alerts") {
-    await sendTelegramMessage(chat.id, "Send the admin password to activate this chat.", {
+    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
       reply_markup: inactiveMenuKeyboard,
     });
     return;
@@ -718,7 +719,7 @@ async function handleTelegramMessage(message) {
     const isActive = await isTelegramAlertChatActive(chat.id);
     await sendTelegramMessage(
       chat.id,
-      isActive ? "Alerts are active for this chat." : "Alerts are not active. Tap Activate Alerts and send the password.",
+      isActive ? "Alerts are active for this chat." : "Alerts are not active. Ask a Level 1 admin for a one-time invitation.",
       { reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard }
     );
     return;
@@ -727,6 +728,7 @@ async function handleTelegramMessage(message) {
   if (text === "/stop" || text === "Stop Alerts") {
     await clearPendingBalanceInput(chat.id);
     await disableTelegramAlertChat(chat.id);
+    await require("./db").execute("UPDATE telegram_operator_chats SET authorized=0 WHERE chat_id=?", [String(chat.id)]);
     await sendTelegramMessage(chat.id, "Telegram alerts have been turned off for this chat.", {
       reply_markup: inactiveMenuKeyboard,
     });
@@ -738,7 +740,7 @@ async function handleTelegramMessage(message) {
     const isActive = await isTelegramAlertChatActive(chat.id);
     if (!isActive) {
       await clearPendingBalanceInput(chat.id);
-      await sendTelegramMessage(chat.id, "Activate this chat first, then send the admin password.", {
+      await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
         reply_markup: inactiveMenuKeyboard,
       });
       return;
@@ -774,14 +776,6 @@ async function handleTelegramMessage(message) {
     return;
   }
 
-  if (verifyTelegramPasscode(text) || verifyTelegramPasscode(text.replace(/^\/login(@\w+)?\s*/i, ""))) {
-    await clearPendingBalanceInput(chat.id);
-    await upsertTelegramAlertChat(chat);
-    await sendTelegramMessage(chat.id, "Telegram alerts are active for Jack The Reaper.", {
-      reply_markup: activeMenuKeyboard,
-    });
-    return;
-  }
 
   const isActive = await isTelegramAlertChatActive(chat.id);
   await sendTelegramMessage(chat.id, "Use the buttons below to manage alerts.", {

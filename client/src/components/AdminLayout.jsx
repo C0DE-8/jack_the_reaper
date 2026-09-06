@@ -7,12 +7,13 @@ import {
   FiUser,
   FiRefreshCw,
 } from 'react-icons/fi'
-import { logoutAdmin } from '../api/auth.js'
+import { getAdminSession, logoutAdmin } from '../api/auth.js'
 
 const navigation = [
   { to: '/admin', label: 'Dashboard', icon: FiGrid, end: true },
   { to: '/admin/batches', label: 'Word Batches', icon: FiMessageSquare },
   { to: '/admin/accounts', label: 'Accounts', icon: FiCreditCard },
+  { to: '/admin/activity', label: "God’s Eye", icon: FiGrid },
   { to: '/admin/profile', label: 'Profile', icon: FiUser },
 ]
 
@@ -36,7 +37,7 @@ function AdminLayout() {
         </div>
 
         <nav className="nav-list" aria-label="Admin navigation">
-          {navigation.map((item) => {
+          {navigation.filter(item => getAdminSession()?.role !== 'level2' || item.to === '/admin/activity').map((item) => {
             const Icon = item.icon
             return (
               <NavLink

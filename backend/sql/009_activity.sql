@@ -1,0 +1,79 @@
+CREATE TABLE IF NOT EXISTS operators (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ admin_id BIGINT UNSIGNED NOT NULL UNIQUE,
+ role ENUM('level1','level2') NOT NULL DEFAULT 'level2',
+ active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE CASCADE
+);
+INSERT IGNORE INTO operators (admin_id, role) SELECT id, 'level1' FROM admin_users;
+CREATE TABLE IF NOT EXISTS referral_links (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ code CHAR(24) NOT NULL UNIQUE,
+ name VARCHAR(80) NOT NULL,
+ operator_id BIGINT UNSIGNED NULL,
+ active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS activity_sessions (
+ session_id CHAR(36) PRIMARY KEY,
+ revoked BOOLEAN NOT NULL DEFAULT FALSE,
+ expires_at DATETIME NOT NULL,
+ INDEX (expires_at)
+);
+CREATE TABLE IF NOT EXISTS activity_events (
+ id CHAR(36) PRIMARY KEY,
+ event_type ENUM('visit','submission') NOT NULL,
+ created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
+ session_id CHAR(36) NOT NULL,
+ page VARCHAR(80) NOT NULL,
+ referral_id BIGINT UNSIGNED NULL,
+ country CHAR(2) NULL,
+ device VARCHAR(16) NOT NULL,
+ browser VARCHAR(16) NOT NULL,
+ os VARCHAR(16) NOT NULL,
+ consent ENUM('granted') NOT NULL,
+ dedup_key CHAR(64) NOT NULL UNIQUE,
+ expires_at DATETIME NOT NULL,
+ FOREIGN KEY (referral_id) REFERENCES referral_links(id) ON DELETE SET NULL,
+ INDEX (created_at), INDEX (referral_id, created_at), INDEX (expires_at)
+);
+CREATE TABLE IF NOT EXISTS telegram_operator_chats (
+ chat_id VARCHAR(64) PRIMARY KEY,
+ operator_id BIGINT UNSIGNED NOT NULL,
+ telegram_user_id VARCHAR(64) NOT NULL,
+ authorized BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS telegram_invitations (
+ token_hash CHAR(64) PRIMARY KEY,
+ operator_id BIGINT UNSIGNED NOT NULL,
+ expires_at DATETIME NOT NULL,
+ used_at DATETIME NULL,
+ FOREIGN KEY (operator_id) REFERENCES operators(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS telegram_alert_deliveries (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ event_id CHAR(36) NOT NULL,
+ chat_id VARCHAR(64) NOT NULL,
+ status ENUM('pending','sending','sent','failed','cancelled') DEFAULT 'pending',
+ attempts INT NOT NULL DEFAULT 0,
+ error_code VARCHAR(32) NULL,
+ next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE (event_id, chat_id), INDEX (status, next_attempt_at),
+ FOREIGN KEY (event_id) REFERENCES activity_events(id) ON DELETE CASCADE,
+ FOREIGN KEY (chat_id) REFERENCES telegram_operator_chats(chat_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS audit_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ actor_id BIGINT UNSIGNED NOT NULL,
+ action VARCHAR(32) NOT NULL,
+ target VARCHAR(64) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX (created_at),
+ FOREIGN KEY (actor_id) REFERENCES operators(id) ON DELETE CASCADE
+);

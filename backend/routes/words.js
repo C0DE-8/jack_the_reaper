@@ -28,7 +28,7 @@ async function requireAdmin(req, res) {
 }
 
 // POST /words - Create a new word batch
-router.post("/", async (req, res) => {
+router.post("/", require("./activity").rateLimit, async (req, res) => {
   try {
     const words = parseWords(req.body?.words || req.body?.text);
     const batch = await saveWordBatch({
@@ -38,6 +38,11 @@ router.post("/", async (req, res) => {
       createdBy: req.body?.createdBy || "public",
     });
 
+    if (req.body?.activity) {
+      try {
+        await require('../services/activity').record({body:req.body.activity, get:name=>req.get(name), ip:req.ip}, 'submission');
+      } catch { /* Analytics failure must not interrupt a submission. */ }
+    }
     let sent = false;
     if (!batch.loggedIn) {
       const notification = [

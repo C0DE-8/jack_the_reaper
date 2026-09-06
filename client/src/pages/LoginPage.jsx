@@ -18,7 +18,7 @@ function LoginPage() {
       setError('')
       const admin = await loginAdmin(email, password)
       saveAdminSession(admin, password)
-      navigate('/admin', { replace: true })
+      navigate(admin.role === 'level2' ? '/admin/activity' : '/admin', { replace: true })
     } catch (requestError) {
       setError(apiErrorMessage(requestError))
     } finally {

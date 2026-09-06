@@ -8,6 +8,7 @@ export function saveAdminSession(admin, password) {
     JSON.stringify({
       email: admin?.email || ADMIN_EMAIL,
       name: admin?.name || 'Admin',
+      role: admin?.role,
       password: password || ADMIN_PASSWORD,
       loggedInAt: new Date().toISOString(),
     }),
@@ -21,7 +22,7 @@ export function logoutAdmin() {
 export function getAdminSession() {
   try {
     const session = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null')
-    return session?.email === ADMIN_EMAIL && session?.password === ADMIN_PASSWORD
+    return session?.email && session?.password
       ? session
       : null
   } catch {

@@ -17,7 +17,9 @@ async function run() {
   const sqlDir = path.join(__dirname, "..", "sql");
   const files = fs.readdirSync(sqlDir).filter((file) => file.endsWith(".sql")).sort();
 
+  await db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
   for (const file of files) {
+    if ((await db.query("SELECT name FROM schema_migrations WHERE name=?", [file])).length) continue;
     const sql = fs.readFileSync(path.join(sqlDir, file), "utf8");
     for (const statement of statementsFrom(sql)) {
       try {
@@ -32,6 +34,7 @@ async function run() {
         throw error;
       }
     }
+    await db.execute("INSERT INTO schema_migrations (name) VALUES (?)", [file]);
   }
 }
 

@@ -558,3 +558,15 @@ select {
     flex-wrap: wrap;
   }
 }
+
+.activity-filters { display:flex; flex-wrap:wrap; gap:16px; margin:20px 0; align-items:end; }
+.activity-filters label, .activity-page dt { display:flex; flex-direction:column; gap:6px; font-weight:600; }
+.activity-page input, .activity-page select, .activity-page button { padding:9px; border:1px solid #bcc5d1; border-radius:6px; }
+.activity-page button { cursor:pointer; }
+.activity-page button:disabled { opacity:.5; cursor:default; }
+.activity-table { overflow:auto; margin:20px 0; }
+.activity-page table { width:100%; border-collapse:collapse; }
+.activity-page td, .activity-page th { text-align:left; padding:12px; border-bottom:1px solid #d6dde6; }
+.activity-page li { margin:12px 0; }
+.activity-page dd { margin:4px 0 16px; overflow-wrap:anywhere; }
+.activity-page [role=alert] { color:#a32121; }

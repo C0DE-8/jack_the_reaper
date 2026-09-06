@@ -16,7 +16,7 @@
     apiUrl: API_URL,
     async sendWords(text, title = "") {
       try {
-        const response = await api.post("/words", { text, title });
+        const response = await api.post("/words", { text, title, activity: window.activityMetadata?.() });
         return response.data;
       } catch (error) {
         throw new Error(messageFromError(error));
