@@ -31,7 +31,7 @@ app.get("/", (req, res) => {
 app.get(["/health", "/api/health"], async (req, res) => {
   try {
     const status = await db.status();
-    res.json({ ok: true, service: SERVICE_NAME, gateway: status });
+    res.json({ ok: true, service: SERVICE_NAME, database: status });
   } catch (error) {
     res.status(503).json({
       ok: false,
