@@ -31,7 +31,8 @@ function App() {
         <Route path="batches" element={<BatchesPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="referrals" element={<ReferralsPage />} />
-        <Route path="visitors" element={<VisitorsPage />} />
+        <Route path="gods-eye" element={<VisitorsPage />} />
+        <Route path="visitors" element={<Navigate to="/admin/gods-eye" replace />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

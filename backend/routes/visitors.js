@@ -5,7 +5,11 @@ const db = require("../db");
 // Get all visitors with pagination /visitors
 router.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 50, sortBy = "last_visit", order = "DESC" } = req.query;
+    const allowedSortFields = new Set(["id", "first_visit", "last_visit", "visit_count"]);
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
+    const sortBy = allowedSortFields.has(req.query.sortBy) ? req.query.sortBy : "last_visit";
+    const order = String(req.query.order).toUpperCase() === "ASC" ? "ASC" : "DESC";
     const offset = (page - 1) * limit;
 
     const countResult = await db.query("SELECT COUNT(*) AS total FROM visitor_logs");
@@ -15,17 +19,17 @@ router.get("/", async (req, res) => {
       `SELECT * FROM visitor_logs 
        ORDER BY ${sortBy} ${order} 
        LIMIT ? OFFSET ?`,
-      [parseInt(limit), parseInt(offset)]
+      [limit, offset]
     );
 
     res.json({
       ok: true,
       data: visitors,
       pagination: {
-        currentPage: parseInt(page),
+        currentPage: page,
         totalPages: Math.ceil(total / limit),
         totalItems: total,
-        itemsPerPage: parseInt(limit)
+        itemsPerPage: limit
       }
     });
   } catch (error) {
@@ -174,46 +178,6 @@ router.post("/track", async (req, res) => {
     });
   } catch (error) {
     console.error("Error tracking visitor:", error);
-    res.status(500).json({
-      ok: false,
-      error: error.message
-    });
-  }
-});
-
-// Get specific visitor by ID /visitors/:id
-router.get("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const visitor = await db.query(
-      `SELECT * FROM visitor_logs WHERE id = ?`,
-      [id]
-    );
-
-    if (visitor.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "Visitor not found"
-      });
-    }
-
-    const events = await db.query(
-      `SELECT * FROM visitor_events 
-       WHERE visitor_id = ? 
-       ORDER BY created_at DESC 
-       LIMIT 50`,
-      [id]
-    );
-
-    res.json({
-      ok: true,
-      data: {
-        ...visitor[0],
-        events: events
-      }
-    });
-  } catch (error) {
-    console.error("Error fetching visitor:", error);
     res.status(500).json({
       ok: false,
       error: error.message
@@ -375,6 +339,30 @@ router.post("/events", async (req, res) => {
       ok: false,
       error: error.message
     });
+  }
+});
+
+// This route must remain after named GET routes such as /analytics/overview.
+router.get("/:id", async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: "Visitor ID must be a positive integer" });
+    }
+
+    const visitor = await db.query("SELECT * FROM visitor_logs WHERE id = ?", [id]);
+    if (visitor.length === 0) {
+      return res.status(404).json({ ok: false, error: "Visitor not found" });
+    }
+
+    const events = await db.query(
+      `SELECT * FROM visitor_events WHERE visitor_id = ? ORDER BY created_at DESC LIMIT 50`,
+      [id]
+    );
+    res.json({ ok: true, data: { ...visitor[0], events } });
+  } catch (error) {
+    console.error("Error fetching visitor:", error);
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 
