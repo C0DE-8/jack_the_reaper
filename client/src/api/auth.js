@@ -1,15 +1,13 @@
-const ADMIN_EMAIL = 'admin@admin.com'
-const ADMIN_PASSWORD = '123456'
 const AUTH_KEY = 'word_admin_auth'
 
 export function saveAdminSession(admin, password) {
   localStorage.setItem(
     AUTH_KEY,
     JSON.stringify({
-      email: admin?.email || ADMIN_EMAIL,
+      email: admin?.email || '',
       name: admin?.name || 'Admin',
       role: admin?.role,
-      password: password || ADMIN_PASSWORD,
+      password: password || '',
       loggedInAt: new Date().toISOString(),
     }),
   )

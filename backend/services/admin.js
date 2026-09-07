@@ -77,13 +77,9 @@ async function verifyAdminCredentials(email, password) {
 
   try {
     const admin = await findAdminByEmail(normalizedEmail);
-    if (admin && admin.passwordHash === hashPassword(normalizedPassword)) {
-      const [operator] = await db.query("SELECT role, active FROM operators WHERE admin_id=?", [admin.id]);
-      if (operator && !operator.active) return null;
-      return { ...publicAdmin(admin), role: operator?.role || "level1" };
-    }
+    if (admin && admin.passwordHash === hashPassword(normalizedPassword)) return { ...publicAdmin(admin), role: "level1" };
 
-    if (normalizedEmail === DEFAULT_ADMIN_EMAIL && normalizedPassword === DEFAULT_ADMIN_PASSWORD) {
+    if (!admin && normalizedEmail === DEFAULT_ADMIN_EMAIL && normalizedPassword === DEFAULT_ADMIN_PASSWORD) {
       const defaultAdmin = await ensureDefaultAdmin(DEFAULT_ADMIN_PASSWORD);
       return { ...publicAdmin(defaultAdmin), role: "level1" };
     }
@@ -115,10 +111,6 @@ async function verifyAdminRequest(req) {
   const password = req.get("x-admin-password") || req.body?.password || req.query?.password;
   if (!password) return null;
   const admin = await verifyAdminCredentials(email, password);
-  if (admin?.id) {
-    const [operator] = await db.query("SELECT role, active FROM operators WHERE admin_id=?", [admin.id]);
-    if (operator && (!operator.active || operator.role !== "level1")) return null;
-  }
   return admin;
 }
 
