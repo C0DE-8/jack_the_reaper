@@ -4,11 +4,10 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "check": "node --check server.js && node --check db.js && node --check telegram.js && node --check routes/telegram.js && node --check routes/words.js && node --check services/words.js && node --check scripts/migrate.js && node --check routes/activity.js && node --check services/activity.js && node --check services/activityTelegram.js",
+    "check": "node --check server.js && node --check db.js && node --check telegram.js && node --check routes/telegram.js && node --check routes/words.js && node --check services/words.js && node --check scripts/migrate.js && node --check routes/referrals.js",
     "migrate": "node scripts/migrate.js",
     "test": "npm run check && node --test test/*.test.js",
     "start": "node server.js",
-    "activity:worker": "node scripts/activity-worker.js",
     "test:integration": "node test/integration.js"
   },
   "keywords": [],

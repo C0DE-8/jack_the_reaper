@@ -14,14 +14,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVICE_NAME = "word backend";
 
-// Trust forwarded IPs only from explicitly configured reverse proxy addresses/CIDRs.
-if (process.env.ACTIVITY_TRUSTED_PROXIES) {
-  app.set('trust proxy', process.env.ACTIVITY_TRUSTED_PROXIES.split(',').map(value => value.trim()).filter(Boolean));
-}
 app.use(cors());
 app.use(express.json({ limit: "32kb" }));
-// God's Eye activity API: records consented visits and serves the protected admin activity dashboard data.
-app.use("/api/activity", require("./routes/activity"));
+app.use("/api/referrals", require("./routes/referrals"));
 app.use("/admin", adminRouter);
 app.use("/api/admin", adminRouter);
 app.use("/telegram", telegramRouter);

@@ -698,7 +698,6 @@ async function getTelegramStatus(value) {
 }
 
 async function handleTelegramMessage(message) {
-  if (await require("./services/activityTelegram").enroll(message)) return;
   const text = String(message.text || "").trim();
   const chat = message.chat;
   if (!chat || !text) return;

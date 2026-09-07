@@ -7,8 +7,7 @@ import ClientPage from './pages/ClientPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
-import ActivityPage from './pages/ActivityPage.jsx'
-import OperatorsPage from './pages/OperatorsPage.jsx'
+import ReferralsPage from './pages/ReferralsPage.jsx'
 import './App.css'
 
 function App() {
@@ -27,9 +26,7 @@ function App() {
         <Route index element={<DashboardPage />} />
         <Route path="batches" element={<BatchesPage />} />
         <Route path="accounts" element={<AccountsPage />} />
-        <Route path="activity" element={<ActivityPage />} />
-        <Route path="activity/:id" element={<ActivityPage />} />
-        <Route path="operators" element={<OperatorsPage />} />
+        <Route path="referrals" element={<ReferralsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/client" replace />} />
