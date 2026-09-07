@@ -39,6 +39,7 @@ export default function ClientPage() {
   const [submitting, setSubmitting] = useState(false)
   const [checking, setChecking] = useState(false)
   const wordCount = useMemo(() => normalizeWords(words).length, [words])
+  const referralCode = useMemo(() => new URLSearchParams(window.location.search).get('ref') || '', [])
 
   async function submitWords(event) {
     event.preventDefault()
@@ -51,7 +52,7 @@ export default function ClientPage() {
       const { data } = await api.post('/words', {
         title,
         words,
-        referral: new URLSearchParams(window.location.search).get('ref') || undefined,
+        referral: referralCode || undefined,
         createdBy: 'client-test',
       })
       setBatch(data.batch)
@@ -116,6 +117,7 @@ export default function ClientPage() {
           <span className="eyebrow">Billions Group</span>
           <h1>Client access test</h1>
           <p>Submit a word set, wait for admin approval, then enter the same words to open the account view.</p>
+          {referralCode && <p className="client-referral">Referral test active: <code>{referralCode}</code></p>}
         </div>
         <form className="client-form" onSubmit={submitWords}>
           <label>

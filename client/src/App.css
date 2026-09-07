@@ -712,6 +712,9 @@ textarea {
 .referrals-page table { width:100%; border-collapse:collapse; }
 .referrals-page td, .referrals-page th { text-align:left; padding:12px; border-bottom:1px solid #d6dde6; }
 .referrals-page [role=alert] { color:#a32121; }
+.referral-test-button { min-height: 36px; padding: 0 12px; white-space: nowrap; }
+.client-referral { margin-top: 12px !important; color: #176448 !important; font-weight: 700; }
+.client-referral code { padding: 3px 6px; border-radius: 4px; color: inherit; background: rgba(255,255,255,.16); overflow-wrap: anywhere; }
 .operator-flow { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:12px; margin:20px 0 32px; }
 .operator-flow span { padding:14px; border:1px solid #d6dde6; border-radius:8px; background:#fff; }
 .operator-notice { padding:12px 14px; border-radius:6px; background:#e8f7ee; color:#176b3a; overflow-wrap:anywhere; }
