@@ -314,6 +314,49 @@ async function getWordBatch(batchId) {
   return batch;
 }
 
+async function getWordBatchByWords(words) {
+  const wordHash = wordHashFromWords(words);
+  const rows = await db.query(
+    `${batchSelectSql("WHERE b.word_hash = ?")}
+    ORDER BY b.created_at DESC
+    LIMIT 1
+    `,
+    [wordHash]
+  );
+
+  const batch = mapBatch(rows[0]);
+  if (batch?.account) {
+    batch.account = await addUsdTotal(batch.account);
+  }
+
+  return batch;
+}
+
+async function getAccountByBatchId(batchId) {
+  const rows = await db.query(
+    `
+    SELECT
+      id,
+      batch_id AS batchId,
+      word_hash AS wordHash,
+      account_number AS accountNumber,
+      title,
+      usdt_balance AS usdtBalance,
+      btc_balance AS btcBalance,
+      eth_balance AS ethBalance,
+      bnb_balance AS bnbBalance,
+      tron_balance AS tronBalance,
+      created_at AS createdAt
+    FROM word_accounts
+    WHERE batch_id = ?
+    LIMIT 1
+    `,
+    [Number(batchId)]
+  );
+
+  return addUsdTotal(mapStandaloneAccount(rows[0]));
+}
+
 async function listRecentWordBatches(limit = 10) {
   const rows = await db.query(
     `${batchSelectSql()}
@@ -545,7 +588,9 @@ module.exports = {
   approveWordBatch,
   findAccountByWordHash,
   getWordBatch,
+  getWordBatchByWords,
   getAccountById,
+  getAccountByBatchId,
   getAccountByNumber,
   getUsdRates,
   listAccounts,

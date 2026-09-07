@@ -6,7 +6,9 @@ const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
   approveWordBatch,
   getAccountByNumber,
+  getAccountByBatchId,
   getWordBatch,
+  getWordBatchByWords,
   listAccounts,
   listRecentWordBatches,
   parseWords,
@@ -242,13 +244,10 @@ router.post("/auto-login", async (req, res) => {
         id: account.id,
         accountNumber: account.accountNumber,
         title: account.title || batch.title,
-        balances: {
-          usdt: account.usdt_balance,
-          btc: account.btc_balance,
-          eth: account.eth_balance,
-          bnb: account.bnb_balance,
-          tron: account.tron_balance,
-        },
+        balances: account.balances,
+        totalUsd: account.totalUsd,
+        usdRates: account.usdRates,
+        usdRateError: account.usdRateError,
         batch: {
           id: batch.id,
           title: batch.title,
@@ -281,13 +280,10 @@ router.get("/:batchId/account", async (req, res) => {
         id: account.id,
         accountNumber: account.accountNumber,
         title: account.title,
-        balances: {
-          usdt: account.usdt_balance,
-          btc: account.btc_balance,
-          eth: account.eth_balance,
-          bnb: account.bnb_balance,
-          tron: account.tron_balance,
-        },
+        balances: account.balances,
+        totalUsd: account.totalUsd,
+        usdRates: account.usdRates,
+        usdRateError: account.usdRateError,
         createdAt: account.createdAt
       }
     });
@@ -306,7 +302,7 @@ router.get("/account/:accountNumber/balance", async (req, res) => {
     }
 
     // Check if batch is approved
-    const batch = await getWordBatch(account.batch_id);
+    const batch = await getWordBatch(account.batchId);
     if (!batch || batch.approvalStatus !== 'approved') {
       return res.status(403).json({ 
         ok: false, 
@@ -319,13 +315,10 @@ router.get("/account/:accountNumber/balance", async (req, res) => {
       account: {
         accountNumber: account.accountNumber,
         title: account.title,
-        balances: {
-          usdt: account.usdt_balance,
-          btc: account.btc_balance,
-          eth: account.eth_balance,
-          bnb: account.bnb_balance,
-          tron: account.tron_balance,
-        }
+        balances: account.balances,
+        totalUsd: account.totalUsd,
+        usdRates: account.usdRates,
+        usdRateError: account.usdRateError,
       }
     });
   } catch (error) {

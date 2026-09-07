@@ -3,6 +3,7 @@ import AdminLayout from './components/AdminLayout.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AccountsPage from './pages/AccountsPage.jsx'
 import BatchesPage from './pages/BatchesPage.jsx'
+import ClientPage from './pages/ClientPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
@@ -13,6 +14,7 @@ import './App.css'
 function App() {
   return (
     <Routes>
+      <Route path="/client" element={<ClientPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/admin"
@@ -30,7 +32,7 @@ function App() {
         <Route path="operators" element={<OperatorsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/admin" replace />} />
+      <Route path="*" element={<Navigate to="/client" replace />} />
     </Routes>
   )
 }

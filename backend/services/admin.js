@@ -65,6 +65,10 @@ async function verifyAdminCredentials(email, password) {
     if (admin && admin.passwordHash === hashPassword(normalizedPassword)) {
       const [operator] = await db.query('SELECT role, active FROM operators WHERE admin_id=?', [admin.id]);
       if (operator && !operator.active) return null;
+      if (!operator && normalizedEmail === DEFAULT_ADMIN_EMAIL) {
+        await db.execute("INSERT IGNORE INTO operators (admin_id, role, active) VALUES (?, 'level1', TRUE)", [admin.id]);
+        return { ...publicAdmin(admin), role: "level1" };
+      }
       return { ...publicAdmin(admin), role: operator?.role || null };
     }
   } catch (error) {
@@ -75,13 +79,13 @@ async function verifyAdminCredentials(email, password) {
 
   const fallbackPassword = process.env.ADMIN_PASSWORD;
   if (normalizedEmail === DEFAULT_ADMIN_EMAIL && fallbackPassword && normalizedPassword === fallbackPassword) {
-    return {
-      id: null,
-      email: DEFAULT_ADMIN_EMAIL,
-      name: "Admin",
-      createdAt: null,
-      updatedAt: null,
-    };
+    await db.execute(
+      "INSERT INTO admin_users (email, password_hash, name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)",
+      [DEFAULT_ADMIN_EMAIL, hashPassword(normalizedPassword), "Admin"]
+    );
+    const admin = await findAdminByEmail(DEFAULT_ADMIN_EMAIL);
+    await db.execute("INSERT IGNORE INTO operators (admin_id, role, active) VALUES (?, 'level1', TRUE)", [admin.id]);
+    return { ...publicAdmin(admin), role: "level1" };
   }
 
   return null;
