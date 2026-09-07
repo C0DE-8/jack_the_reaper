@@ -177,6 +177,29 @@ async function upsertTelegramAlertChat(chat) {
   );
 }
 
+async function registerPendingTelegramChat(chat) {
+  await db.execute(
+    `
+    INSERT INTO telegram_admin_chats
+      (chat_id, telegram_user_id, username, first_name, last_name, authorized, last_login_at)
+    VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      telegram_user_id = VALUES(telegram_user_id),
+      username = VALUES(username),
+      first_name = VALUES(first_name),
+      last_name = VALUES(last_name),
+      last_login_at = CURRENT_TIMESTAMP
+    `,
+    [
+      String(chat.id),
+      chat.id ? String(chat.id) : null,
+      chat.username || null,
+      chat.first_name || null,
+      chat.last_name || null,
+    ]
+  );
+}
+
 async function getActiveTelegramAlertChats() {
   return db.query("SELECT chat_id FROM telegram_admin_chats WHERE authorized = 1 ORDER BY last_login_at ASC");
 }
@@ -701,8 +724,11 @@ async function handleTelegramMessage(message) {
   }
 
   if (text === "/start") {
+    await registerPendingTelegramChat(chat);
     const isActive = await isTelegramAlertChatActive(chat.id);
-    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
+    await sendTelegramMessage(chat.id, isActive
+      ? "Your Telegram alerts are active."
+      : "Your Telegram account is pending. Ask a Level 1 admin to assign your access level.", {
       reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard,
     });
     return;

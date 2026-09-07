@@ -20,6 +20,7 @@ if (process.env.ACTIVITY_TRUSTED_PROXIES) {
 }
 app.use(cors());
 app.use(express.json({ limit: "32kb" }));
+// God's Eye activity API: records consented visits and serves the protected admin activity dashboard data.
 app.use("/api/activity", require("./routes/activity"));
 app.use("/admin", adminRouter);
 app.use("/api/admin", adminRouter);
