@@ -15,6 +15,29 @@ function rateLimit(req,res,next) {
   if(++value.count>60 || (!buckets.has(key) && buckets.size>=10000)) return res.status(429).json({error:'Too many requests'});
   buckets.set(key,value); next();
 }
+function missingTelegramChatColumn(error) {
+  return /telegram_chat_id/i.test(error.message || '');
+}
+function nullAdminIdRejected(error) {
+  return /admin_id/i.test(error.message || '') && /null|no default|cannot be null/i.test(error.message || '');
+}
+async function listTelegramUsers() {
+  try {
+    return await db.query(`SELECT t.chat_id,t.telegram_user_id,t.username,t.first_name,t.last_name,t.authorized,
+      o.id AS operator_id,o.role,o.active
+      FROM telegram_admin_chats t
+      LEFT JOIN operators o ON o.telegram_chat_id=t.chat_id
+      ORDER BY t.updated_at DESC,t.chat_id`);
+  } catch (error) {
+    if (!missingTelegramChatColumn(error)) throw error;
+    return db.query(`SELECT t.chat_id,t.telegram_user_id,t.username,t.first_name,t.last_name,t.authorized,
+      o.id AS operator_id,o.role,o.active
+      FROM telegram_admin_chats t
+      LEFT JOIN telegram_operator_chats c ON c.chat_id=t.chat_id
+      LEFT JOIN operators o ON o.id=c.operator_id
+      ORDER BY t.updated_at DESC,t.chat_id`);
+  }
+}
 // Apply per-IP request limits to every activity endpoint.
 router.use(rateLimit);
 // Prevent browsers and proxies from caching private activity responses.
@@ -67,11 +90,7 @@ router.get('/audit',async(req,res)=>{
 router.get('/settings',async(req,res)=>{
   a.level1(req.operator);
   const operators=await db.query('SELECT o.id,o.role,o.active,u.name,u.email FROM operators o JOIN admin_users u ON u.id=o.admin_id');
-  const telegramUsers=await db.query(`SELECT t.chat_id,t.telegram_user_id,t.username,t.first_name,t.last_name,t.authorized,
-    o.id AS operator_id,o.role,o.active
-    FROM telegram_admin_chats t
-    LEFT JOIN operators o ON o.telegram_chat_id=t.chat_id
-    ORDER BY t.updated_at DESC,t.chat_id`);
+  const telegramUsers=await listTelegramUsers();
   const referrals=await db.query('SELECT id,code,name,operator_id,active FROM referral_links ORDER BY id DESC');
   res.json({operators,telegramUsers,referrals});
 });
@@ -79,11 +98,7 @@ router.get('/settings',async(req,res)=>{
 router.get('/telegram-users',async(req,res)=>{
   a.level1(req.operator);
   const [telegramUsers,referrals]=await Promise.all([
-    db.query(`SELECT t.chat_id,t.telegram_user_id,t.username,t.first_name,t.last_name,t.authorized,
-      o.id AS operator_id,o.role,o.active
-      FROM telegram_admin_chats t
-      LEFT JOIN operators o ON o.telegram_chat_id=t.chat_id
-      ORDER BY t.updated_at DESC,t.chat_id`),
+    listTelegramUsers(),
     db.query('SELECT id,code,name,operator_id,active FROM referral_links ORDER BY id DESC'),
   ]);
   res.json({telegramUsers,referrals});
@@ -98,16 +113,31 @@ router.put('/telegram-users/:chatId/access',async(req,res)=>{
   await a.transaction(async conn=>{
     const [chat]=await conn.query('SELECT chat_id,telegram_user_id FROM telegram_admin_chats WHERE chat_id=? FOR UPDATE',[chatId]);
     if(!chat) throw a.fail(404,'Telegram user was not found. Ask the user to send /start to the bot.');
-    let [operator]=await conn.query('SELECT id FROM operators WHERE telegram_chat_id=? FOR UPDATE',[chatId]);
+    let operator=null;
+    try {
+      [operator]=await conn.query('SELECT id FROM operators WHERE telegram_chat_id=? FOR UPDATE',[chatId]);
+    } catch (error) {
+      if(!missingTelegramChatColumn(error)) throw error;
+    }
     if(!operator) {
       [operator]=await conn.query('SELECT o.id FROM operators o JOIN telegram_operator_chats c ON c.operator_id=o.id WHERE c.chat_id=? FOR UPDATE',[chatId]);
     }
     let operatorId=operator?.id;
     if(operatorId) {
-      await conn.execute('UPDATE operators SET telegram_chat_id=?,role=?,active=? WHERE id=?',[chatId,role,active,operatorId]);
+      try {
+        await conn.execute('UPDATE operators SET telegram_chat_id=?,role=?,active=? WHERE id=?',[chatId,role,active,operatorId]);
+      } catch (error) {
+        if(!missingTelegramChatColumn(error)) throw error;
+        await conn.execute('UPDATE operators SET role=?,active=? WHERE id=?',[role,active,operatorId]);
+      }
     } else {
-      const result=await conn.execute('INSERT INTO operators (admin_id,telegram_chat_id,role,active) VALUES (NULL,?,?,?)',[chatId,role,active]);
-      operatorId=result.insertId;
+      try {
+        const result=await conn.execute('INSERT INTO operators (admin_id,telegram_chat_id,role,active) VALUES (NULL,?,?,?)',[chatId,role,active]);
+        operatorId=result.insertId;
+      } catch (error) {
+        if(missingTelegramChatColumn(error) || nullAdminIdRejected(error)) throw a.fail(503,'Live database migration 010 is required before approving new Telegram admins');
+        throw error;
+      }
     }
     await conn.execute(`INSERT INTO telegram_operator_chats (chat_id,operator_id,telegram_user_id,authorized)
       VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE operator_id=VALUES(operator_id),telegram_user_id=VALUES(telegram_user_id),authorized=VALUES(authorized)`,
