@@ -200,8 +200,12 @@ async function registerPendingTelegramChat(chat) {
   );
 }
 
-async function getActiveTelegramAlertChats() {
-  return db.query("SELECT chat_id FROM telegram_admin_chats WHERE authorized = 1 ORDER BY last_login_at ASC");
+async function getActiveTelegramAlertChats(referralCode = null) {
+  return db.query(`SELECT DISTINCT t.chat_id FROM telegram_admin_chats t
+    LEFT JOIN telegram_referral_assignments a ON a.chat_id=t.chat_id
+    LEFT JOIN referral_links r ON r.id=a.referral_id
+    WHERE t.authorized=1 AND (t.alert_level='level1' OR (t.alert_level='level2' AND r.active=1 AND r.code=?))
+    ORDER BY t.last_login_at ASC`, [referralCode]);
 }
 
 async function countActiveTelegramAlertChats() {
@@ -271,7 +275,8 @@ async function sendTelegramAlert(text, options = {}) {
     return false;
   }
 
-  const chats = await getActiveTelegramAlertChats();
+  const { referralCode = null, ...telegramOptions } = options;
+  const chats = await getActiveTelegramAlertChats(referralCode);
   if (!chats.length) {
     console.warn("No Telegram alert chats are registered; alert skipped.");
     return false;
@@ -282,7 +287,7 @@ async function sendTelegramAlert(text, options = {}) {
       const chatId = chat.chat_id || chat.chatId;
       try {
         for (const chunk of chunksForTelegram(text)) {
-          await sendTelegramMessage(chatId, chunk, options);
+          await sendTelegramMessage(chatId, chunk, telegramOptions);
         }
       } catch (error) {
         if (error.status === 403 || error.status === 400) {

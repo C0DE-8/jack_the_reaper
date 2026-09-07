@@ -16,25 +16,30 @@ function statementsFrom(sql) {
 async function run() {
   const sqlDir = path.join(__dirname, "..", "sql");
   const files = fs.readdirSync(sqlDir).filter((file) => file.endsWith(".sql")).sort();
+  const conn = await db.getConnection();
 
-  await db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
-  for (const file of files) {
-    if ((await db.query("SELECT name FROM schema_migrations WHERE name=?", [file])).length) continue;
-    const sql = fs.readFileSync(path.join(sqlDir, file), "utf8");
-    for (const statement of statementsFrom(sql)) {
-      try {
-        await db.execute(statement);
-        console.log(`Migrated ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
-      } catch (error) {
-        if (/duplicate column|duplicate key|duplicate.*index/i.test(error.message || "")) {
-          console.log(`Skipped ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")} already applied`);
-          continue;
+  try {
+    await conn.query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+    for (const file of files) {
+      if ((await conn.query("SELECT name FROM schema_migrations WHERE name=?", [file])).length) continue;
+      const sql = fs.readFileSync(path.join(sqlDir, file), "utf8");
+      for (const statement of statementsFrom(sql)) {
+        try {
+          await conn.query(statement);
+          console.log(`Migrated ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")}`);
+        } catch (error) {
+          if (/duplicate column|duplicate key|duplicate.*index/i.test(error.message || "")) {
+            console.log(`Skipped ${file}: ${statement.split(/\s+/).slice(0, 6).join(" ")} already applied`);
+            continue;
+          }
+
+          throw error;
         }
-
-        throw error;
       }
+      await conn.query("INSERT INTO schema_migrations (name) VALUES (?)", [file]);
     }
-    await db.execute("INSERT INTO schema_migrations (name) VALUES (?)", [file]);
+  } finally {
+    conn.release();
   }
 }
 

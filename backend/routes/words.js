@@ -49,7 +49,9 @@ router.post("/", async (req, res) => {
         batch.words.join(" "),
       ].filter(Boolean).join("\n");
 
+      const referralCode = /^[a-f0-9]{24}$/.test(String(req.body?.referral || '')) ? String(req.body.referral) : null;
       sent = await sendTelegramAlert(notification, {
+        referralCode,
         reply_markup: approvalKeyboard(batch.id),
       });
     }

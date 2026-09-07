@@ -51,6 +51,7 @@ export default function ClientPage() {
       const { data } = await api.post('/words', {
         title,
         words,
+        referral: new URLSearchParams(window.location.search).get('ref') || undefined,
         createdBy: 'client-test',
       })
       setBatch(data.batch)

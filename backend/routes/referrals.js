@@ -18,6 +18,36 @@ router.get('/', async (req, res) => {
   res.json({ referrals: await db.query('SELECT id,code,name,active,created_at FROM referral_links ORDER BY id DESC') });
 });
 
+router.get('/telegram-users', async (req, res) => {
+  const [telegramUsers, referrals, assignments] = await Promise.all([
+    db.query('SELECT chat_id,username,first_name,last_name,authorized,alert_level FROM telegram_admin_chats ORDER BY updated_at DESC'),
+    db.query('SELECT id,code,name,active,created_at FROM referral_links ORDER BY id DESC'),
+    db.query('SELECT chat_id,referral_id FROM telegram_referral_assignments'),
+  ]);
+  res.json({ telegramUsers, referrals, assignments });
+});
+
+router.put('/telegram-users/:chatId', async (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  const { alertLevel, authorized, referralIds = [] } = req.body || {};
+  if (!/^-?\d{1,20}$/.test(chatId) || !['level1', 'level2'].includes(alertLevel) || typeof authorized !== 'boolean' || !Array.isArray(referralIds)) return res.status(400).json({ error: 'Valid Telegram access settings required' });
+  const ids = [...new Set(referralIds.map(Number).filter(Number.isSafeInteger))];
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const users = await conn.query('SELECT chat_id FROM telegram_admin_chats WHERE chat_id=? FOR UPDATE', [chatId]);
+    if (!users.length) return res.status(404).json({ error: 'Telegram user was not found' });
+    await conn.execute('UPDATE telegram_admin_chats SET authorized=?,alert_level=? WHERE chat_id=?', [authorized, alertLevel, chatId]);
+    await conn.execute('DELETE FROM telegram_referral_assignments WHERE chat_id=?', [chatId]);
+    if (alertLevel === 'level2' && ids.length) {
+      const valid = await conn.query(`SELECT id FROM referral_links WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+      if (valid.length !== ids.length) throw Object.assign(new Error('One or more referral links were not found'), { status: 400 });
+      for (const id of ids) await conn.execute('INSERT INTO telegram_referral_assignments (chat_id,referral_id) VALUES (?,?)', [chatId, id]);
+    }
+    await conn.commit(); res.json({ ok: true });
+  } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+});
+
 router.post('/', async (req, res) => {
   const name = String(req.body.name || '').trim();
   if (!/^[\p{L}\p{N} _-]{1,80}$/u.test(name)) return res.status(400).json({ error: 'Use a short campaign name with letters, numbers, spaces or dashes' });
