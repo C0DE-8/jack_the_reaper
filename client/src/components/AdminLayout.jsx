@@ -7,6 +7,7 @@ import {
   FiUser,
   FiRefreshCw,
   FiLink,
+  FiUsers,
 } from 'react-icons/fi'
 import { logoutAdmin } from '../api/auth.js'
 
@@ -15,6 +16,7 @@ const navigation = [
   { to: '/admin/batches', label: 'Word Batches', icon: FiMessageSquare },
   { to: '/admin/accounts', label: 'Accounts', icon: FiCreditCard },
   { to: '/admin/referrals', label: 'Referrals', icon: FiLink },
+  { to: '/admin/visitors', label: 'Visitors', icon: FiUsers },
   { to: '/admin/profile', label: 'Profile', icon: FiUser },
 ]
 
