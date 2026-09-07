@@ -1,11 +1,30 @@
 import axios from 'axios'
+import { apiBaseUrl } from './baseUrl.js'
 
 const visitorApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: apiBaseUrl,
   timeout: 15000,
 })
 
 let initialVisitRequest
+
+// God’s Eye API routes. `apiBaseUrl` is `/api` locally and becomes
+// `https://api.truxhubline.space/api` when the deployed environment provides
+// the bare API origin.
+export async function fetchVisitors(params = {}) {
+  const { data } = await visitorApi.get('/visitors', { params })
+  return data
+}
+
+export async function fetchVisitorAnalytics(params = {}) {
+  const { data } = await visitorApi.get('/visitors/analytics/overview', { params })
+  return data
+}
+
+export async function fetchVisitor(id) {
+  const { data } = await visitorApi.get(`/visitors/${id}`)
+  return data
+}
 
 export async function trackVisitor(payload) {
   const { data } = await visitorApi.post('/visitors/track', payload)

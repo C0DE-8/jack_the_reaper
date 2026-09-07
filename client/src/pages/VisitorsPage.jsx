@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FiActivity, FiChevronRight, FiEye, FiMonitor, FiRefreshCw, FiUsers } from 'react-icons/fi'
-import api, { apiErrorMessage } from '../api/adminApi.js'
+import { apiErrorMessage } from '../api/adminApi.js'
+import { fetchVisitor, fetchVisitorAnalytics, fetchVisitors } from '../api/visitorApi.js'
 import MetricCard from '../components/MetricCard.jsx'
 
 function formatDate(value) {
@@ -42,11 +43,11 @@ export default function VisitorsPage() {
       setLoading(true)
       setError('')
       const [visitorResponse, analyticsResponse] = await Promise.all([
-        api.get('/visitors', { params: { limit: 100 } }),
-        api.get('/visitors/analytics/overview', { params: { period: '30d' } }),
+        fetchVisitors({ limit: 100 }),
+        fetchVisitorAnalytics({ period: '30d' }),
       ])
-      setVisitors(visitorResponse.data.data || [])
-      setAnalytics(analyticsResponse.data.data || null)
+      setVisitors(visitorResponse.data || [])
+      setAnalytics(analyticsResponse.data || null)
     } catch (requestError) {
       setError(apiErrorMessage(requestError))
     } finally {
@@ -63,7 +64,7 @@ export default function VisitorsPage() {
     try {
       setDetailLoading(true)
       setError('')
-      const { data } = await api.get(`/visitors/${id}`)
+      const data = await fetchVisitor(id)
       setSelectedVisitor(data.data)
     } catch (requestError) {
       setError(apiErrorMessage(requestError))

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   FiCreditCard,
@@ -7,6 +8,8 @@ import {
   FiUser,
   FiRefreshCw,
   FiLink,
+  FiMenu,
+  FiX,
   FiUsers,
 } from 'react-icons/fi'
 import { logoutAdmin } from '../api/auth.js'
@@ -22,6 +25,15 @@ const navigation = [
 
 function AdminLayout() {
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
 
   function handleLogout() {
     logoutAdmin()
@@ -30,7 +42,24 @@ function AdminLayout() {
 
   return (
     <div className="admin-shell">
-      <aside className="sidebar">
+      <header className="mobile-topbar">
+        <NavLink className="mobile-brand" to="/admin" aria-label="Billions Group dashboard">
+          <span className="brand-mark">BG</span>
+          <span>Billions Group</span>
+        </NavLink>
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-controls="admin-navigation"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? <FiX aria-hidden="true" /> : <FiMenu aria-hidden="true" />}
+        </button>
+      </header>
+      {menuOpen ? <button className="menu-backdrop" type="button" aria-label="Close navigation menu" onClick={() => setMenuOpen(false)} /> : null}
+      <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
         <div className="brand">
           <span className="brand-mark">BG</span>
           <div>
@@ -39,7 +68,7 @@ function AdminLayout() {
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="Admin navigation">
+        <nav id="admin-navigation" className="nav-list" aria-label="Admin navigation">
           {navigation.map((item) => {
             const Icon = item.icon
             return (
@@ -48,6 +77,7 @@ function AdminLayout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                onClick={() => setMenuOpen(false)}
               >
                 <Icon aria-hidden="true" />
                 <span>{item.label}</span>

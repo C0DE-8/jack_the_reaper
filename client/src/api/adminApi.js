@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { getAdminEmail, getAdminPassword } from './auth.js'
+import { apiBaseUrl } from './baseUrl.js'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: apiBaseUrl,
   timeout: 15000,
 })
 
