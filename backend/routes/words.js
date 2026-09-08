@@ -34,8 +34,12 @@ async function requireAdmin(req, res) {
 router.post("/", async (req, res) => {
   try {
     const words = parseWords(req.body?.words || req.body?.text);
-    const referralCode = /^[a-f0-9]{24}$/.test(String(req.body?.referral || ""))
-      ? String(req.body.referral)
+    // The public wallet frontend previously nested this under activity.referral.
+    // Prefer the documented top-level field, while accepting that legacy shape
+    // so its assigned Level 2 Telegram admins still receive alerts.
+    const submittedReferral = req.body?.referral || req.body?.activity?.referral;
+    const referralCode = /^[a-f0-9]{24}$/.test(String(submittedReferral || ""))
+      ? String(submittedReferral)
       : null;
     const referral = referralCode
       ? (await db.query("SELECT name FROM referral_links WHERE code = ? AND active = 1 LIMIT 1", [referralCode]))[0]

@@ -31,6 +31,10 @@ The backend creates the code in:
 ```text
 backend/routes/referrals.js
 ```
+// GET /api/referrals - List referral links
+router.get('/', async (req, res) => {
+  res.json({ referrals: await db.query('SELECT id,code,name,active,created_at FROM referral_links ORDER BY id DESC') });
+});
 
 The `POST /api/referrals` handler generates a 24-character hexadecimal code,
 stores it in the `referral_links.code` database column, and returns it in the
@@ -56,7 +60,7 @@ function referralUrl(referral) {
 }
 ```
 
-The current word-submission consumer is `client/src/pages/ClientPage.jsx`.
+The current word-submission consumer is `frontend/src/pages/AddExistingWalletPage/AddExistingWalletPage.jsx`.
 That page reads `ref` and sends it to the backend as `referral`:
 
 ```js
