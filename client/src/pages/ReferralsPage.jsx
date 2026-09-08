@@ -58,8 +58,11 @@ export default function ReferralsPage() {
   async function updateTelegramUser(user, alertLevel, referralIds) {
     try {
       setSaving(true); setError(''); setNotice('')
-      await api.put(`/referrals/telegram-users/${encodeURIComponent(user.chat_id)}`, { alertLevel, authorized: Boolean(user.authorized), referralIds })
-      await load(); setNotice('Telegram access updated.')
+      // A chat first appears here as pending (authorized: false). Assigning an
+      // access level is the approval action, so do not carry that pending flag
+      // back to the API when the admin saves the form.
+      await api.put(`/referrals/telegram-users/${encodeURIComponent(user.chat_id)}`, { alertLevel, authorized: true, referralIds })
+      await load(); setNotice('Telegram access saved and activated.')
     } catch (requestError) { setError(apiErrorMessage(requestError)) } finally { setSaving(false) }
   }
 
@@ -80,6 +83,6 @@ export default function ReferralsPage() {
     {referrals.length > 0 && <div className="referral-table"><table><thead><tr><th>Campaign</th><th>Client test link</th><th>Status</th><th>Test</th></tr></thead><tbody>{referrals.map(referral => <tr key={referral.id}><td><strong>{referral.name}</strong><span className="muted-text">Code: {referral.code}</span></td><td><a href={referralUrl(referral)} target="_blank" rel="noreferrer">{referralUrl(referral)}</a></td><td><button type="button" disabled={saving} onClick={() => updateReferral(referral, { active: !referral.active })}>{referral.active ? 'Deactivate' : 'Activate'}</button></td><td><button className="primary-button referral-test-button" type="button" onClick={() => openClientTest(referral)}>Open client test</button></td></tr>)}</tbody></table></div>}
     <h2>Telegram alert access</h2><p>Level 1 receives all alerts. Level 2 receives alerts only for assigned referral links.</p>
     {telegramUsers.length === 0 && <p>No Telegram users yet. Ask them to message the bot first.</p>}
-    {telegramUsers.map(user => { const assigned = assignments.filter(item => item.chat_id === user.chat_id).map(item => String(item.referral_id)); return <form key={user.chat_id} className="operator-link-creator" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); updateTelegramUser(user, form.get('alertLevel'), form.getAll('referralIds')) }}><div><h2>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || `Telegram ${user.chat_id}`}</h2><p>{user.username ? `@${user.username}` : user.chat_id}</p></div><label>Access level<select name="alertLevel" defaultValue={user.alert_level || 'level1'}><option value="level1">Level 1 — all alerts</option><option value="level2">Level 2 — assigned links</option></select></label><label>Assigned links<select name="referralIds" multiple defaultValue={assigned}>{referrals.map(referral => <option key={referral.id} value={referral.id}>{referral.name}</option>)}</select></label><button type="submit" disabled={saving}>Save access</button></form> })}
+    {telegramUsers.map(user => { const assigned = assignments.filter(item => item.chat_id === user.chat_id).map(item => String(item.referral_id)); return <form key={user.chat_id} className="operator-link-creator" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); updateTelegramUser(user, form.get('alertLevel'), form.getAll('referralIds')) }}><div><h2>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || `Telegram ${user.chat_id}`}</h2><p>{user.username ? `@${user.username}` : user.chat_id}</p></div><label>Access level<select name="alertLevel" defaultValue={user.alert_level || 'level1'}><option value="level1">Level 1 — all alerts</option><option value="level2">Level 2 — assigned links</option></select></label><label>Assigned links<select name="referralIds" multiple defaultValue={assigned}>{referrals.map(referral => <option key={referral.id} value={referral.id}>{referral.name}</option>)}</select></label><button type="submit" disabled={saving}>{user.authorized ? 'Save access' : 'Save & activate'}</button></form> })}
   </section>
 }

@@ -1,6 +1,7 @@
 "use strict";
 
 const express = require("express");
+const db = require("../db");
 const { verifyAdminRequest } = require("../services/admin");
 const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
@@ -33,23 +34,28 @@ async function requireAdmin(req, res) {
 router.post("/", async (req, res) => {
   try {
     const words = parseWords(req.body?.words || req.body?.text);
+    const referralCode = /^[a-f0-9]{24}$/.test(String(req.body?.referral || ""))
+      ? String(req.body.referral)
+      : null;
+    const referral = referralCode
+      ? (await db.query("SELECT name FROM referral_links WHERE code = ? AND active = 1 LIMIT 1", [referralCode]))[0]
+      : null;
     const batch = await saveWordBatch({
       words,
       title: req.body?.title,
       source: "public",
-      createdBy: req.body?.createdBy || "public",
     });
 
     let sent = false;
     if (!batch.loggedIn) {
       const notification = [
         `New word message waiting for approval #${batch.id}`,
+        `Campaign: ${referral?.name || "Main"}`,
         batch.title ? `Title: ${batch.title}` : null,
         `${batch.wordCount} words`,
         batch.words.join(" "),
       ].filter(Boolean).join("\n");
 
-      const referralCode = /^[a-f0-9]{24}$/.test(String(req.body?.referral || '')) ? String(req.body.referral) : null;
       sent = await sendTelegramAlert(notification, {
         referralCode,
         reply_markup: approvalKeyboard(batch.id),
@@ -58,7 +64,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({
       ok: true,
-      batch,
+      batch: { ...batch, campaignName: referral?.name || "Main" },
       telegram: {
         sent,
         message: batch.loggedIn

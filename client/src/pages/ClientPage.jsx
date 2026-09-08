@@ -53,7 +53,6 @@ export default function ClientPage() {
         title,
         words,
         referral: referralCode || undefined,
-        createdBy: 'client-test',
       })
       setBatch(data.batch)
       if (data.batch?.account) {

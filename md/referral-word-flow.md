@@ -24,29 +24,40 @@ Example:
 https://truxhubline.space/client?ref=abc123456789
 ```
 
-The backend API base URL is:
+### Where the referral code currently exists
+
+The backend creates the code in:
 
 ```text
-https://api.truxhubline.space
+backend/routes/referrals.js
 ```
 
-## Client word submission
+The `POST /api/referrals` handler generates a 24-character hexadecimal code,
+stores it in the `referral_links.code` database column, and returns it in the
+response:
 
-The client page reads the `ref` query parameter and sends it with the word submission:
+```js
+const code = crypto.randomBytes(12).toString('hex')
+await db.execute('INSERT INTO referral_links (code,name) VALUES (?,?)', [code, name])
+res.status(201).json({ code, path: `/?ref=${code}` })
+```
 
-```http
-POST https://api.truxhubline.space/api/words
-Content-Type: application/json
+The admin referral page that displays and builds the public URL is:
 
-{
-  "title": "Client visit",
-  "words": "market river window signal yellow",
-  "referral": "abc123456789",
-  "createdBy": "client-test"
+```text
+client/src/pages/ReferralsPage.jsx
+```
+
+Its current URL builder is:
+
+```js
+function referralUrl(referral) {
+  return `${publicUrl}/client?ref=${encodeURIComponent(referral.code)}`
 }
 ```
 
-The client already reads `ref` and sends it as `referral`:
+The current word-submission consumer is `client/src/pages/ClientPage.jsx`.
+That page reads `ref` and sends it to the backend as `referral`:
 
 ```js
 const referralCode = new URLSearchParams(window.location.search).get('ref') || ''
@@ -55,7 +66,78 @@ await api.post('/words', {
   title,
   words,
   referral: referralCode || undefined,
-  createdBy: 'client-test',
+})
+```
+
+If the referral should open a different frontend page, change the `/client`
+part in `ReferralsPage.jsx` and add the same query-parameter reading plus the
+`referral` field to that specific page's API request. The target page is not
+specified here, so do not add this logic to another page without first naming
+that page.
+
+The currently generated client link is:
+
+```text
+https://truxhubline.space/client?ref=be45b878370988bd0b6a48fa
+```
+
+When testing, open that URL, submit the words, and confirm in the browser
+network request that `POST /api/words` contains:
+
+```json
+{
+  "referral": "be45b878370988bd0b6a48fa"
+}
+```
+
+The backend API base URL is:
+
+```text
+https://api.truxhubline.space
+```
+
+## Client word submission
+
+The client page reads the `ref` query parameter and sends it with the word submission. Use one of these request bodies with the same endpoint.
+
+### Referral campaign
+
+```http
+POST https://api.truxhubline.space/api/words
+Content-Type: application/json
+
+{
+  "title": "Client visit",
+  "words": "market river window signal yellow",
+  "referral": "abc123456789"
+}
+```
+
+This resolves `abc123456789` to its active referral-link name and the Telegram approval alert shows `Campaign: <campaign name>`.
+
+### Main campaign (no referral)
+
+```http
+POST https://api.truxhubline.space/api/words
+Content-Type: application/json
+
+{
+  "title": "Client visit",
+  "words": "market river window signal yellow"
+}
+```
+
+The Telegram approval alert for this request shows `Campaign: Main`.
+
+The client already reads `ref` and sends it as `referral`. The words router resolves that referral code to its active campaign name and includes `Campaign: <name>` in the Telegram approval alert. Submissions without a valid active referral are labeled `Campaign: Main`.
+
+```js
+const referralCode = new URLSearchParams(window.location.search).get('ref') || ''
+
+await api.post('/words', {
+  title,
+  words,
+  referral: referralCode || undefined,
 })
 ```
 
