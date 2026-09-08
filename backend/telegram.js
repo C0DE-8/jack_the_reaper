@@ -480,7 +480,7 @@ async function handleAccountCommand(message, command) {
   const chat = message.chat;
   const isActive = await isTelegramAlertChatActive(chat.id);
   if (!isActive) {
-    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
+    await sendTelegramMessage(chat.id, "Ask an admin to authorize this chat in the web admin.", {
       reply_markup: inactiveMenuKeyboard,
     });
     return;
@@ -739,7 +739,7 @@ async function handleTelegramMessage(message) {
   }
 
   if (text === "Activate Alerts") {
-    await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
+    await sendTelegramMessage(chat.id, "Ask an admin to authorize this chat in the web admin.", {
       reply_markup: inactiveMenuKeyboard,
     });
     return;
@@ -749,7 +749,7 @@ async function handleTelegramMessage(message) {
     const isActive = await isTelegramAlertChatActive(chat.id);
     await sendTelegramMessage(
       chat.id,
-      isActive ? "Alerts are active for this chat." : "Alerts are not active. Ask a Level 1 admin for a one-time invitation.",
+      isActive ? "Alerts are active for this chat." : "Alerts are not active. Ask an admin to authorize this chat in the web admin.",
       { reply_markup: isActive ? activeMenuKeyboard : inactiveMenuKeyboard }
     );
     return;
@@ -770,7 +770,7 @@ async function handleTelegramMessage(message) {
     const isActive = await isTelegramAlertChatActive(chat.id);
     if (!isActive) {
       await clearPendingBalanceInput(chat.id);
-      await sendTelegramMessage(chat.id, "Ask a Level 1 admin for a one-time /enroll invitation.", {
+      await sendTelegramMessage(chat.id, "Ask an admin to authorize this chat in the web admin.", {
         reply_markup: inactiveMenuKeyboard,
       });
       return;

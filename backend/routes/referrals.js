@@ -14,10 +14,12 @@ router.use(async (req, res, next) => {
   next();
 });
 
+// GET /api/referrals - List referral links
 router.get('/', async (req, res) => {
   res.json({ referrals: await db.query('SELECT id,code,name,active,created_at FROM referral_links ORDER BY id DESC') });
 });
 
+// GET /api/referrals/telegram-users - List Telegram users and referral assignments
 router.get('/telegram-users', async (req, res) => {
   const [telegramUsers, referrals, assignments] = await Promise.all([
     db.query('SELECT chat_id,username,first_name,last_name,authorized,alert_level FROM telegram_admin_chats ORDER BY updated_at DESC'),
@@ -27,6 +29,7 @@ router.get('/telegram-users', async (req, res) => {
   res.json({ telegramUsers, referrals, assignments });
 });
 
+// PUT /api/referrals/telegram-users/:chatId - Update Telegram user access
 router.put('/telegram-users/:chatId', async (req, res) => {
   const chatId = String(req.params.chatId || '');
   const { alertLevel, authorized, referralIds = [] } = req.body || {};
@@ -48,6 +51,7 @@ router.put('/telegram-users/:chatId', async (req, res) => {
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
 });
 
+// POST /api/referrals - Create a referral link
 router.post('/', async (req, res) => {
   const name = String(req.body.name || '').trim();
   if (!/^[\p{L}\p{N} _-]{1,80}$/u.test(name)) return res.status(400).json({ error: 'Use a short campaign name with letters, numbers, spaces or dashes' });
@@ -56,6 +60,7 @@ router.post('/', async (req, res) => {
   res.status(201).json({ code, path: `/?ref=${code}` });
 });
 
+// PUT /api/referrals/:id - Update a referral link
 router.put('/:id', async (req, res) => {
   if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'Boolean active required' });
   await db.execute('UPDATE referral_links SET active=? WHERE id=?', [req.body.active, req.params.id]);

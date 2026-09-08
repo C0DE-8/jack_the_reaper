@@ -34,6 +34,7 @@ function requireTelegramConfig(req, res, next) {
   return next();
 }
 
+// POST /api/telegram/set-webhook - Set the Telegram webhook
 router.post("/set-webhook", requireTelegramPasscode, requireTelegramConfig, async (req, res, next) => {
   try {
     const result = await setTelegramWebhook(req.body.webhookUrl || req.body.baseUrl);
@@ -48,6 +49,7 @@ router.post("/set-webhook", requireTelegramPasscode, requireTelegramConfig, asyn
   }
 });
 
+// POST /api/telegram/reset-webhook - Reset the Telegram webhook
 router.post("/reset-webhook", requireTelegramPasscode, requireTelegramConfig, async (req, res, next) => {
   try {
     await deleteTelegramWebhook(req.body.dropPendingUpdates);
@@ -63,6 +65,7 @@ router.post("/reset-webhook", requireTelegramPasscode, requireTelegramConfig, as
   }
 });
 
+// POST /api/telegram/delete-webhook - Delete the Telegram webhook
 router.post("/delete-webhook", requireTelegramPasscode, requireTelegramConfig, async (req, res, next) => {
   try {
     const result = await deleteTelegramWebhook(req.body.dropPendingUpdates);
@@ -72,6 +75,7 @@ router.post("/delete-webhook", requireTelegramPasscode, requireTelegramConfig, a
   }
 });
 
+// POST /api/telegram/test-alert - Send a test Telegram alert
 router.post("/test-alert", requireTelegramPasscode, requireTelegramConfig, async (req, res, next) => {
   try {
     const sent = await sendTelegramAlert(req.body.text || "Test alert\nJack The Reaper Telegram alerts are working.");
@@ -85,6 +89,7 @@ router.post("/test-alert", requireTelegramPasscode, requireTelegramConfig, async
   }
 });
 
+// GET /api/telegram/status - Get the Telegram integration status
 router.get("/status", requireTelegramConfig, async (req, res, next) => {
   try {
     res.json({ ok: true, status: await getTelegramStatus(req.query.webhookUrl || req.query.baseUrl) });
@@ -93,6 +98,7 @@ router.get("/status", requireTelegramConfig, async (req, res, next) => {
   }
 });
 
+// GET /api/telegram/webhook-info - Get Telegram webhook information
 router.get("/webhook-info", requireTelegramPasscode, requireTelegramConfig, async (req, res, next) => {
   try {
     res.json({ ok: true, result: await getTelegramWebhookInfo() });
@@ -101,6 +107,7 @@ router.get("/webhook-info", requireTelegramPasscode, requireTelegramConfig, asyn
   }
 });
 
+// POST /api/telegram/webhook/:secret - Receive Telegram webhook updates
 router.post("/webhook/:secret", requireTelegramConfig, async (req, res, next) => {
   try {
     if (!webhookSecret() || req.params.secret !== webhookSecret()) {
