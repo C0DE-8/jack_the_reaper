@@ -15,13 +15,13 @@ https://truxhubline.space
 Use this referral link format:
 
 ```text
-https://truxhubline.space/client?ref=REFERRAL_CODE
+https://truxhubline.space/?ref=REFERRAL_CODE
 ```
 
 Example:
 
 ```text
-https://truxhubline.space/client?ref=abc123456789
+https://truxhubline.space/?ref=abc123456789
 ```
 
 ### Where the referral code currently exists
@@ -52,7 +52,7 @@ Its current URL builder is:
 
 ```js
 function referralUrl(referral) {
-  return `${publicUrl}/client?ref=${encodeURIComponent(referral.code)}`
+  return `${publicUrl}/?ref=${encodeURIComponent(referral.code)}`
 }
 ```
 
@@ -69,16 +69,14 @@ await api.post('/words', {
 })
 ```
 
-If the referral should open a different frontend page, change the `/client`
-part in `ReferralsPage.jsx` and add the same query-parameter reading plus the
-`referral` field to that specific page's API request. The target page is not
-specified here, so do not add this logic to another page without first naming
-that page.
+The public referral link opens the production frontend. The separate
+`/client?ref=CODE` route on the admin application is retained only for admin
+testing.
 
 The currently generated client link is:
 
 ```text
-https://truxhubline.space/client?ref=be45b878370988bd0b6a48fa
+https://truxhubline.space/?ref=be45b878370988bd0b6a48fa
 ```
 
 When testing, open that URL, submit the words, and confirm in the browser
@@ -211,7 +209,7 @@ https://api.truxhubline.space/api/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>
 
 ## Completed demo flow
 
-1. Open `/client?ref=CODE`.
+1. A user opens `https://truxhubline.space/?ref=CODE`; admins can use the separate `/client?ref=CODE` test route on the admin site.
 2. Submit words.
 3. The backend sends the alert to level 1 users.
 4. The backend sends the alert to level 2 users only when the referral is assigned to them.
