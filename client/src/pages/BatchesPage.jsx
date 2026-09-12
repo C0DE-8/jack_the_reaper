@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FiCheck, FiRefreshCw, FiX } from 'react-icons/fi'
+import { FiCheck, FiCopy, FiRefreshCw, FiX } from 'react-icons/fi'
 import { apiErrorMessage, approveBatch, fetchWordBatches, rejectBatch } from '../api/adminApi.js'
 import StatusBadge from '../components/StatusBadge.jsx'
 
@@ -7,6 +7,7 @@ function BatchesPage() {
   const [batches, setBatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
+  const [copiedId, setCopiedId] = useState(null)
   const [error, setError] = useState('')
 
   async function loadBatches() {
@@ -55,6 +56,18 @@ function BatchesPage() {
     }
   }
 
+  async function copyWords(batch) {
+    if (!batch.words) return
+
+    try {
+      await navigator.clipboard.writeText(batch.words)
+      setCopiedId(batch.id)
+      window.setTimeout(() => setCopiedId((current) => (current === batch.id ? null : current)), 1500)
+    } catch {
+      setError('Unable to copy the words. Please try again.')
+    }
+  }
+
   return (
     <section className="page-stack">
       <header className="page-header">
@@ -92,7 +105,16 @@ function BatchesPage() {
                     <td>#{batch.id}</td>
                     <td>
                       <strong>{batch.title || 'Untitled'}</strong>
-                      <span className="muted-text">{batch.words || 'No words shown'}</span>
+                      <button
+                        className="muted-text batch-words-copy"
+                        type="button"
+                        title={batch.words ? 'Copy words' : 'No words to copy'}
+                        disabled={!batch.words}
+                        onClick={() => copyWords(batch)}
+                      >
+                        <span>{batch.words || 'No words shown'}</span>
+                        {copiedId === batch.id ? <FiCheck aria-label="Copied" /> : <FiCopy aria-label="Copy words" />}
+                      </button>
                     </td>
                     <td>{batch.wordCount}</td>
                     <td><StatusBadge status={batch.approvalStatus} /></td>
