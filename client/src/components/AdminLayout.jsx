@@ -11,6 +11,7 @@ import {
   FiMenu,
   FiX,
   FiUsers,
+  FiBell,
 } from 'react-icons/fi'
 import { logoutAdmin } from '../api/auth.js'
 
@@ -18,6 +19,7 @@ const navigation = [
   { to: '/admin', label: 'Dashboard', icon: FiGrid, end: true },
   { to: '/admin/batches', label: 'Word Batches', icon: FiMessageSquare },
   { to: '/admin/accounts', label: 'Accounts', icon: FiCreditCard },
+  { to: '/admin/alerts', label: 'User Alerts', icon: FiBell },
   { to: '/admin/referrals', label: 'Referrals', icon: FiLink },
   { to: '/admin/gods-eye', label: "God's Eye", icon: FiUsers },
   { to: '/admin/profile', label: 'Profile', icon: FiUser },

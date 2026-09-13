@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage.jsx'
 import ReferralsPage from './pages/ReferralsPage.jsx'
 import VisitorPage from './pages/VisitorPage.jsx'
 import VisitorsPage from './pages/VisitorsPage.jsx'
+import AlertsPage from './pages/AlertsPage.jsx'
 import './App.css'
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Route index element={<DashboardPage />} />
         <Route path="batches" element={<BatchesPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
         <Route path="referrals" element={<ReferralsPage />} />
         <Route path="gods-eye" element={<VisitorsPage />} />
         <Route path="visitors" element={<Navigate to="/admin/gods-eye" replace />} />

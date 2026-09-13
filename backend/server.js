@@ -10,6 +10,7 @@ const adminRouter = require("./routes/admin");
 const telegramRouter = require("./routes/telegram");
 const wordsRouter = require("./routes/words");
 const visitorsRouter = require("./routes/visitors");
+const alertsRouter = require("./routes/alerts");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,8 @@ app.use("/api/telegram", telegramRouter);
 app.use("/words", wordsRouter);
 app.use("/api/words", wordsRouter);
 app.use("/api/visitors", visitorsRouter);
+app.use("/alerts", alertsRouter);
+app.use("/api/alerts", alertsRouter);
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 app.get("/", (req, res) => {

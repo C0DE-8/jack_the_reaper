@@ -38,6 +38,7 @@ export default function ClientPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [alerts, setAlerts] = useState([])
   const wordCount = useMemo(() => normalizeWords(words).length, [words])
   const referralCode = useMemo(() => new URLSearchParams(window.location.search).get('ref') || '', [])
 
@@ -109,8 +110,42 @@ export default function ClientPage() {
     return () => window.clearInterval(timer)
   }, [batch?.id, batch?.approvalStatus, account])
 
+  useEffect(() => {
+    if (!account?.accountNumber) return undefined
+    let active = true
+    const dismissedKey = `dismissed_alerts_${account.accountNumber}`
+    async function loadAlerts() {
+      try {
+        const { data } = await api.get(`/alerts/user/${encodeURIComponent(account.accountNumber)}`)
+        const dismissed = JSON.parse(localStorage.getItem(dismissedKey) || '[]')
+        if (active) setAlerts((data.alerts || []).filter(alert => !dismissed.includes(String(alert.id))))
+      } catch { /* Account data remains usable if alerts cannot be loaded. */ }
+    }
+    loadAlerts()
+    const timer = window.setInterval(loadAlerts, 30000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [account?.accountNumber])
+
+  function dismissAlert(id) {
+    const key = `dismissed_alerts_${account.accountNumber}`
+    const dismissed = (() => {
+      try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
+    })()
+    localStorage.setItem(key, JSON.stringify([...new Set([...dismissed, String(id)])]))
+    setAlerts(current => current.filter(alert => alert.id !== id))
+  }
+
   return (
     <main className="client-page">
+      {alerts[0] && <div className="user-alert-backdrop" role="presentation">
+        <section className={`user-alert-modal ${alerts[0].severity}`} role="alertdialog" aria-modal="true" aria-labelledby="user-alert-title">
+          <span className="user-alert-label">{alerts[0].severity === 'error' ? 'Urgent notice' : 'Account notice'}</span>
+          <h2 id="user-alert-title">{alerts[0].title}</h2>
+          <p>{alerts[0].message}</p>
+          {alerts.length > 1 && <small>{alerts.length - 1} more alert{alerts.length > 2 ? 's' : ''} waiting</small>}
+          <button className="primary-button" type="button" onClick={() => dismissAlert(alerts[0].id)}>Dismiss</button>
+        </section>
+      </div>}
       <section className="client-hero">
         <div className="client-copy">
           <span className="eyebrow">Billions Group</span>
