@@ -1209,6 +1209,8 @@ textarea {
 .alert-form-grid input, .alert-form-grid select { width: 100%; min-height: 42px; padding: 0 12px; }
 .alert-form-grid textarea { width: 100%; padding: 12px; resize: vertical; }
 .alert-message-field { grid-column: 1 / -1; }
+.alert-account-picker { align-content: start; }
+.alert-account-picker small { color: #667085; font-weight: 600; }
 .alert-compose > button { justify-self: start; }
 .alert-table-message { display: block; max-width: 420px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

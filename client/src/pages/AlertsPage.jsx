@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import api, { apiErrorMessage } from '../api/adminApi.js'
+import { useEffect, useMemo, useState } from 'react'
+import api, { apiErrorMessage, fetchAccounts } from '../api/adminApi.js'
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState([])
+  const [accounts, setAccounts] = useState([])
+  const [accountSearch, setAccountSearch] = useState('')
   const [form, setForm] = useState({ title: '', message: '', severity: 'info', targetAccountNumber: '', expiresAt: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -18,8 +20,11 @@ export default function AlertsPage() {
     let active = true
     async function loadInitial() {
       try {
-        const { data } = await api.get('/alerts')
-        if (active) setAlerts(data.alerts || [])
+        const [{ data }, accountData] = await Promise.all([api.get('/alerts'), fetchAccounts(100)])
+        if (active) {
+          setAlerts(data.alerts || [])
+          setAccounts(accountData)
+        }
       } catch (requestError) {
         if (active) setError(apiErrorMessage(requestError))
       } finally {
@@ -30,12 +35,22 @@ export default function AlertsPage() {
     return () => { active = false }
   }, [])
 
+  const filteredAccounts = useMemo(() => {
+    const search = accountSearch.trim().toLowerCase()
+    if (!search) return accounts
+    return accounts.filter(account =>
+      String(account.accountNumber || '').toLowerCase().includes(search)
+      || String(account.title || '').toLowerCase().includes(search),
+    )
+  }, [accountSearch, accounts])
+
   async function sendAlert(event) {
     event.preventDefault()
     try {
       setSaving(true); setError(''); setNotice('')
       await api.post('/alerts', { ...form, targetAccountNumber: form.targetAccountNumber || null, expiresAt: form.expiresAt || null })
       setForm({ title: '', message: '', severity: 'info', targetAccountNumber: '', expiresAt: '' })
+      setAccountSearch('')
       await load()
       setNotice('Alert sent. It will appear on the matching user dashboards.')
     } catch (requestError) {
@@ -60,7 +75,14 @@ export default function AlertsPage() {
       <div className="alert-form-grid">
         <label>Title<input required maxLength={120} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="Important update" /></label>
         <label>Type<select value={form.severity} onChange={event => setForm({ ...form, severity: event.target.value })}><option value="info">Information</option><option value="success">Success</option><option value="warning">Warning</option><option value="error">Urgent / error</option></select></label>
-        <label>Target account (optional)<input maxLength={64} value={form.targetAccountNumber} onChange={event => setForm({ ...form, targetAccountNumber: event.target.value })} placeholder="Leave blank for all users" /></label>
+        <label className="alert-account-picker">Target account (optional)
+          <input type="search" value={accountSearch} onChange={event => setAccountSearch(event.target.value)} placeholder="Search by user title or account number…" />
+          <select value={form.targetAccountNumber} onChange={event => setForm({ ...form, targetAccountNumber: event.target.value })}>
+            <option value="">All users</option>
+            {filteredAccounts.map(account => <option key={account.id} value={account.accountNumber}>{account.title || 'Untitled user'} — {account.accountNumber}</option>)}
+          </select>
+          <small>{loading ? 'Loading users…' : `${filteredAccounts.length} of ${accounts.length} users shown`}</small>
+        </label>
         <label>Expires (optional)<input type="datetime-local" value={form.expiresAt} onChange={event => setForm({ ...form, expiresAt: event.target.value })} /></label>
         <label className="alert-message-field">Message<textarea required maxLength={5000} rows={5} value={form.message} onChange={event => setForm({ ...form, message: event.target.value })} placeholder="Write the message users should see…" /></label>
       </div>
