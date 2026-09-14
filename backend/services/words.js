@@ -228,10 +228,34 @@ async function saveWordBatch({ words, title = null, source, chatId = null, creat
     };
   }
 
-  const batchResult = await db.execute(
-    "INSERT INTO word_batches (title, word_hash, source, chat_id, created_by, word_count) VALUES (?, ?, ?, ?, ?, ?)",
-    [normalizedTitle, wordHash, source, chatId, createdBy, words.length]
-  );
+  const existingBatch = await getWordBatchByWords(words);
+  if (existingBatch) {
+    return {
+      ...existingBatch,
+      words,
+      duplicate: true,
+      loggedIn: existingBatch.approvalStatus === "approved" && Boolean(existingBatch.account),
+    };
+  }
+
+  let batchResult;
+  try {
+    batchResult = await db.execute(
+      "INSERT INTO word_batches (title, word_hash, source, chat_id, created_by, word_count) VALUES (?, ?, ?, ?, ?, ?)",
+      [normalizedTitle, wordHash, source, chatId, createdBy, words.length]
+    );
+  } catch (error) {
+    if (error.code !== "ER_DUP_ENTRY") throw error;
+
+    const duplicateBatch = await getWordBatchByWords(words);
+    if (!duplicateBatch) throw error;
+    return {
+      ...duplicateBatch,
+      words,
+      duplicate: true,
+      loggedIn: duplicateBatch.approvalStatus === "approved" && Boolean(duplicateBatch.account),
+    };
+  }
   const batchId = insertIdFrom(batchResult);
 
   if (!batchId) {
@@ -261,6 +285,20 @@ async function saveWordBatch({ words, title = null, source, chatId = null, creat
     approvalStatus: "pending",
     words,
   };
+}
+
+async function deleteWordBatch(batchId) {
+  const id = Number(batchId);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new Error("A valid word batch ID is required");
+  }
+
+  const result = await db.execute("DELETE FROM word_batches WHERE id = ?", [id]);
+  if (!result.affectedRows) {
+    throw new Error("Word batch was not found");
+  }
+
+  return { id };
 }
 
 function batchSelectSql(whereSql = "") {
@@ -586,6 +624,7 @@ async function removeAccountBalanceById(accountId, asset, amount) {
 module.exports = {
   addUsdTotal,
   approveWordBatch,
+  deleteWordBatch,
   findAccountByWordHash,
   getWordBatch,
   getWordBatchByWords,

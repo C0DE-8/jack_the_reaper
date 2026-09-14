@@ -6,6 +6,7 @@ const { verifyAdminRequest } = require("../services/admin");
 const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
   approveWordBatch,
+  deleteWordBatch,
   getAccountByNumber,
   getAccountByBatchId,
   getWordBatch,
@@ -51,7 +52,7 @@ router.post("/", async (req, res) => {
     });
 
     let sent = false;
-    if (!batch.loggedIn) {
+    if (!batch.loggedIn && !batch.duplicate) {
       const notification = [
         `New word message waiting for approval #${batch.id}`,
         `Campaign: ${referral?.name || "Main"}`,
@@ -66,13 +67,15 @@ router.post("/", async (req, res) => {
       });
     }
 
-    res.status(201).json({
+    res.status(batch.duplicate || batch.loggedIn ? 200 : 201).json({
       ok: true,
       batch: { ...batch, campaignName: referral?.name || "Main" },
       telegram: {
         sent,
         message: batch.loggedIn
           ? "Existing account found. User is logged in."
+          : batch.duplicate
+            ? `These words already belong to a ${batch.approvalStatus} batch.`
           : sent
             ? "Message sent to Telegram admins for approval."
             : "No active Telegram admin chats are registered yet.",
@@ -190,6 +193,19 @@ router.post("/:id/reject", async (req, res) => {
     res.json({ ok: true, batch });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+// DELETE /words/:id - Delete a word batch and its related account (admin only)
+router.delete("/:id", async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    const deleted = await deleteWordBatch(req.params.id);
+    res.json({ ok: true, deleted });
+  } catch (error) {
+    const status = /not found/i.test(error.message) ? 404 : 400;
+    res.status(status).json({ ok: false, error: error.message });
   }
 });
 

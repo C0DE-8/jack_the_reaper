@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { FiCheck, FiCopy, FiRefreshCw, FiX } from 'react-icons/fi'
-import { apiErrorMessage, approveBatch, fetchWordBatches, rejectBatch } from '../api/adminApi.js'
+import { FiCheck, FiCopy, FiRefreshCw, FiTrash2, FiX } from 'react-icons/fi'
+import { apiErrorMessage, approveBatch, deleteBatch, fetchWordBatches, rejectBatch } from '../api/adminApi.js'
 import StatusBadge from '../components/StatusBadge.jsx'
 
 function BatchesPage() {
@@ -8,6 +8,7 @@ function BatchesPage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [error, setError] = useState('')
 
   async function loadBatches() {
@@ -68,8 +69,67 @@ function BatchesPage() {
     }
   }
 
+  async function removeBatch() {
+    if (!deleteTarget) return
+    const batch = deleteTarget
+    try {
+      setError('')
+      setBusyId(batch.id)
+      await deleteBatch(batch.id)
+      setBatches((current) => current.filter((item) => item.id !== batch.id))
+      setDeleteTarget(null)
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <section className="page-stack">
+      {deleteTarget ? (
+        <div className="admin-modal-backdrop" role="presentation">
+          <section
+            className="admin-modal danger-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-batch-title"
+            aria-describedby="delete-batch-description"
+          >
+            <div className="admin-modal-icon" aria-hidden="true">
+              <FiTrash2 />
+            </div>
+            <div className="admin-modal-copy">
+              <span className="eyebrow">Permanent action</span>
+              <h2 id="delete-batch-title">Delete this word batch?</h2>
+              <p id="delete-batch-description">
+                <strong>{deleteTarget.title || `Batch #${deleteTarget.id}`}</strong> and its saved words,
+                account, and balances will be permanently removed.
+              </p>
+            </div>
+            <div className="admin-modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busyId === deleteTarget.id}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="danger-button"
+                type="button"
+                disabled={busyId === deleteTarget.id}
+                onClick={removeBatch}
+              >
+                {busyId === deleteTarget.id ? <span className="button-spinner" aria-hidden="true" /> : <FiTrash2 aria-hidden="true" />}
+                {busyId === deleteTarget.id ? 'Deleting…' : 'Delete batch'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <header className="page-header">
         <div>
           <span className="eyebrow">Moderation</span>
@@ -138,6 +198,15 @@ function BatchesPage() {
                           onClick={() => updateBatch(batch.id, 'reject')}
                         >
                           <FiX aria-hidden="true" />
+                        </button>
+                        <button
+                          className="icon-button danger"
+                          type="button"
+                          title="Delete"
+                          disabled={busyId === batch.id}
+                          onClick={() => setDeleteTarget(batch)}
+                        >
+                          <FiTrash2 aria-hidden="true" />
                         </button>
                       </div>
                     </td>

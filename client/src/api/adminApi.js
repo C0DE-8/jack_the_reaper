@@ -58,6 +58,10 @@ export async function rejectBatch(id) {
   return data.batch
 }
 
+export async function deleteBatch(id) {
+  await api.delete(`/words/${id}`)
+}
+
 export async function topUpAccount(accountNumber, asset, amount) {
   const { data } = await api.post(`/words/accounts/${accountNumber}/top-up`, {
     asset,

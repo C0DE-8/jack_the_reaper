@@ -381,6 +381,120 @@ td strong,
   cursor: pointer;
 }
 
+.danger-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid #c83232;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #c83232;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #aa2727;
+  border-color: #aa2727;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(16, 24, 40, 0.62);
+  backdrop-filter: blur(5px);
+  animation: modal-fade-in 160ms ease-out;
+}
+
+.admin-modal {
+  width: min(480px, 100%);
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 30px 90px rgba(16, 24, 40, 0.3);
+  animation: modal-rise-in 180ms ease-out;
+}
+
+.admin-modal-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.admin-modal-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.admin-modal-copy h2 {
+  margin: 7px 0 10px;
+  color: #101828;
+  font-size: 24px;
+}
+
+.admin-modal-copy p {
+  margin: 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.admin-modal-copy p strong {
+  color: #344054;
+}
+
+.admin-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: button-spin 700ms linear infinite;
+}
+
+@keyframes button-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes modal-rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+
+@media (max-width: 520px) {
+  .admin-modal { padding: 22px; }
+  .admin-modal-actions { flex-direction: column-reverse; }
+  .admin-modal-actions button { width: 100%; }
+}
+
 .icon-button {
   width: 40px;
   color: #4b5563;
