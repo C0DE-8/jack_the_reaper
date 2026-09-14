@@ -18,6 +18,7 @@ const {
   rejectWordBatch,
   saveWordBatch,
   topUpAccount,
+  updateAccount,
 } = require("../services/words");
 
 const router = express.Router();
@@ -119,6 +120,22 @@ router.get("/accounts/:accountNumber", async (req, res) => {
     return res.json({ ok: true, account });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// PUT /words/accounts/:accountNumber - Edit account details (admin only)
+router.put("/accounts/:accountNumber", async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    const account = await updateAccount(req.params.accountNumber, {
+      accountNumber: req.body?.accountNumber,
+      title: req.body?.title,
+    });
+    res.json({ ok: true, account });
+  } catch (error) {
+    const status = /not found/i.test(error.message) ? 404 : 400;
+    res.status(status).json({ ok: false, error: error.message });
   }
 });
 

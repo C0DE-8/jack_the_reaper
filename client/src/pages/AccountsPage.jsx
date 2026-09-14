@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { FiMinus, FiPlus, FiRefreshCw } from 'react-icons/fi'
+import { FiEdit2, FiMinus, FiPlus, FiRefreshCw, FiSave, FiX } from 'react-icons/fi'
 import {
   apiErrorMessage,
   fetchAccounts,
   removeAccountBalance,
   topUpAccount,
+  updateAccount,
 } from '../api/adminApi.js'
 
 const assets = ['usdt', 'btc', 'eth', 'bnb', 'tron']
@@ -21,6 +22,8 @@ function AccountsPage() {
   const [busyAccount, setBusyAccount] = useState('')
   const [error, setError] = useState('')
   const [form, setForm] = useState({ accountNumber: '', asset: 'usdt', amount: '' })
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm] = useState({ accountNumber: '', title: '' })
 
   async function loadAccounts() {
     try {
@@ -74,8 +77,84 @@ function AccountsPage() {
     }
   }
 
+  function openEditor(account) {
+    setError('')
+    setEditTarget(account)
+    setEditForm({ accountNumber: account.accountNumber, title: account.title || '' })
+  }
+
+  async function saveAccount(event) {
+    event.preventDefault()
+    if (!editTarget) return
+
+    try {
+      setError('')
+      setBusyAccount(editTarget.accountNumber)
+      const updated = await updateAccount(editTarget.accountNumber, editForm)
+      setAccounts((current) => current.map((account) => (account.id === updated.id ? updated : account)))
+      setForm((current) => ({
+        ...current,
+        accountNumber: current.accountNumber === editTarget.accountNumber ? updated.accountNumber : current.accountNumber,
+      }))
+      setEditTarget(null)
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError))
+    } finally {
+      setBusyAccount('')
+    }
+  }
+
   return (
     <section className="page-stack">
+      {editTarget ? (
+        <div className="admin-modal-backdrop" role="presentation">
+          <form
+            className="admin-modal account-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-account-title"
+            onSubmit={saveAccount}
+          >
+            <div className="admin-modal-icon edit-icon" aria-hidden="true"><FiEdit2 /></div>
+            <div className="admin-modal-copy">
+              <span className="eyebrow">Account details</span>
+              <h2 id="edit-account-title">Edit account</h2>
+              <p>Update the identifier and title for <strong>{editTarget.accountNumber}</strong>.</p>
+            </div>
+            <div className="account-edit-fields">
+              <label>
+                <span>Account number</span>
+                <input
+                  autoFocus
+                  maxLength="64"
+                  required
+                  value={editForm.accountNumber}
+                  onChange={(event) => setEditForm((current) => ({ ...current, accountNumber: event.target.value.toUpperCase() }))}
+                />
+              </label>
+              <label>
+                <span>Title</span>
+                <input
+                  maxLength="255"
+                  placeholder="Account title"
+                  value={editForm.title}
+                  onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="admin-modal-actions">
+              <button className="secondary-button" type="button" disabled={Boolean(busyAccount)} onClick={() => setEditTarget(null)}>
+                <FiX aria-hidden="true" /> Cancel
+              </button>
+              <button className="primary-button" type="submit" disabled={Boolean(busyAccount) || !editForm.accountNumber.trim()}>
+                {busyAccount ? <span className="button-spinner" aria-hidden="true" /> : <FiSave aria-hidden="true" />}
+                {busyAccount ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       <header className="page-header">
         <div>
           <span className="eyebrow">Balances</span>
@@ -163,11 +242,12 @@ function AccountsPage() {
                 <th>Balances</th>
                 <th>Total USD</th>
                 <th>Created</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="5">Loading accounts...</td></tr>
+                <tr><td colSpan="6">Loading accounts...</td></tr>
               ) : accounts.length ? (
                 accounts.map((account) => (
                   <tr key={account.id}>
@@ -176,10 +256,15 @@ function AccountsPage() {
                     <td>{balanceLabel(account)}</td>
                     <td>{account.totalUsd === null ? 'N/A' : `$${Number(account.totalUsd || 0).toLocaleString()}`}</td>
                     <td>{account.createdAt ? new Date(account.createdAt).toLocaleString() : 'N/A'}</td>
+                    <td>
+                      <button className="icon-button" type="button" title={`Edit ${account.accountNumber}`} onClick={() => openEditor(account)}>
+                        <FiEdit2 aria-hidden="true" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="5">No accounts found.</td></tr>
+                <tr><td colSpan="6">No accounts found.</td></tr>
               )}
             </tbody>
           </table>

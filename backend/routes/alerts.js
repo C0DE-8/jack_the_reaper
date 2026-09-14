@@ -23,6 +23,27 @@ function present(row) {
   };
 }
 
+async function validatedAlertInput(body) {
+  const title = String(body?.title || "").trim();
+  const message = String(body?.message || "").trim();
+  const severity = String(body?.severity || "info");
+  const target = String(body?.targetAccountNumber || "").trim() || null;
+  const expiresAt = body?.expiresAt || null;
+  if (!title || title.length > 120) throw new Error("Title is required and must be 120 characters or fewer");
+  if (!message || message.length > 5000) throw new Error("Message is required and must be 5,000 characters or fewer");
+  if (!severities.has(severity)) throw new Error("Invalid alert severity");
+  if (target) {
+    const account = await db.query("SELECT id FROM word_accounts WHERE account_number = ? LIMIT 1", [target]);
+    if (!account.length) {
+      const error = new Error("Target account was not found");
+      error.status = 404;
+      throw error;
+    }
+  }
+  if (expiresAt && Number.isNaN(Date.parse(expiresAt))) throw new Error("Expiration date is invalid");
+  return { title, message, severity, target, expiresAt: expiresAt ? new Date(expiresAt) : null };
+}
+
 async function requireAdmin(req, res) {
   const admin = await verifyAdminRequest(req);
   if (!admin) res.status(401).json({ ok: false, error: "Invalid admin credentials" });
@@ -50,29 +71,51 @@ router.post("/", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
   try {
-    const title = String(req.body?.title || "").trim();
-    const message = String(req.body?.message || "").trim();
-    const severity = String(req.body?.severity || "info");
-    const target = String(req.body?.targetAccountNumber || "").trim() || null;
-    const expiresAt = req.body?.expiresAt || null;
-    if (!title || title.length > 120) throw new Error("Title is required and must be 120 characters or fewer");
-    if (!message || message.length > 5000) throw new Error("Message is required and must be 5,000 characters or fewer");
-    if (!severities.has(severity)) throw new Error("Invalid alert severity");
-    if (target) {
-      const account = await db.query("SELECT id FROM word_accounts WHERE account_number = ? LIMIT 1", [target]);
-      if (!account.length) return res.status(404).json({ ok: false, error: "Target account was not found" });
-    }
-    if (expiresAt && Number.isNaN(Date.parse(expiresAt))) throw new Error("Expiration date is invalid");
+    const { title, message, severity, target, expiresAt } = await validatedAlertInput(req.body);
     const result = await db.execute(`
       INSERT INTO user_alerts (title, message, severity, target_account_number, expires_at, created_by)
       VALUES (?, ?, ?, ?, ?, ?)
-    `, [title, message, severity, target, expiresAt ? new Date(expiresAt) : null, admin.email]);
+    `, [title, message, severity, target, expiresAt, admin.email]);
     const [row] = await db.query(`
       SELECT id, title, message, severity, target_account_number AS targetAccountNumber,
         active, expires_at AS expiresAt, created_by AS createdBy,
         created_at AS createdAt, updated_at AS updatedAt FROM user_alerts WHERE id = ?
     `, [result.insertId]);
     res.status(201).json({ ok: true, alert: present(row) });
+  } catch (error) {
+    res.status(error.status || 400).json({ ok: false, error: error.message });
+  }
+});
+
+// PUT /api/alerts/:id - Update previously published alert information
+router.put("/:id", async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const { title, message, severity, target, expiresAt } = await validatedAlertInput(req.body);
+    const result = await db.execute(`
+      UPDATE user_alerts
+      SET title = ?, message = ?, severity = ?, target_account_number = ?, expires_at = ?
+      WHERE id = ?
+    `, [title, message, severity, target, expiresAt, req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ ok: false, error: "Alert was not found" });
+    const [row] = await db.query(`
+      SELECT id, title, message, severity, target_account_number AS targetAccountNumber,
+        active, expires_at AS expiresAt, created_by AS createdBy,
+        created_at AS createdAt, updated_at AS updatedAt FROM user_alerts WHERE id = ?
+    `, [req.params.id]);
+    res.json({ ok: true, alert: present(row) });
+  } catch (error) {
+    res.status(error.status || 400).json({ ok: false, error: error.message });
+  }
+});
+
+// DELETE /api/alerts/:id - Permanently remove an alert
+router.delete("/:id", async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = await db.execute("DELETE FROM user_alerts WHERE id = ?", [req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ ok: false, error: "Alert was not found" });
+    res.json({ ok: true, deleted: { id: Number(req.params.id) } });
   } catch (error) {
     res.status(400).json({ ok: false, error: error.message });
   }

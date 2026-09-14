@@ -520,6 +520,45 @@ async function getAccountByNumber(accountNumber) {
   return addUsdTotal(mapStandaloneAccount(rows[0]));
 }
 
+function normalizeAccountNumber(accountNumber) {
+  const value = String(accountNumber || "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9-]{2,63}$/.test(value)) {
+    throw new Error("Account number must be 3-64 characters using letters, numbers, or hyphens");
+  }
+  return value;
+}
+
+async function updateAccount(accountNumber, updates = {}) {
+  const currentAccount = await getAccountByNumber(accountNumber);
+  if (!currentAccount) {
+    throw new Error("Account was not found");
+  }
+
+  const nextAccountNumber = normalizeAccountNumber(updates.accountNumber || currentAccount.accountNumber);
+  const nextTitle = typeof updates.title === "undefined" ? currentAccount.title : normalizeTitle(updates.title);
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      "UPDATE word_accounts SET account_number = ?, title = ? WHERE id = ?",
+      [nextAccountNumber, nextTitle, currentAccount.id]
+    );
+    await connection.execute("UPDATE word_batches SET title = ? WHERE id = ?", [nextTitle, currentAccount.batchId]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === "ER_DUP_ENTRY") {
+      throw new Error("That account number is already in use");
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  return getAccountByNumber(nextAccountNumber);
+}
+
 async function getAccountById(accountId) {
   const rows = await db.query(
     `
@@ -642,5 +681,6 @@ module.exports = {
   listRecentWordBatches,
   topUpAccount,
   topUpAccountById,
+  updateAccount,
   wordHashFromWords,
 };

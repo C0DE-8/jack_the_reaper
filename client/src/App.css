@@ -445,6 +445,29 @@ td strong,
   height: 21px;
 }
 
+.admin-modal-icon.edit-icon {
+  color: #175cd3;
+  background: #dbeafe;
+}
+
+.account-edit-fields {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.account-edit-fields label {
+  display: grid;
+  gap: 8px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.account-edit-fields input {
+  padding: 0 12px;
+}
+
 .admin-modal-copy h2 {
   margin: 7px 0 10px;
   color: #101828;
@@ -1327,6 +1350,14 @@ textarea {
 .alert-account-picker small { color: #667085; font-weight: 600; }
 .alert-compose > button { justify-self: start; }
 .alert-table-message { display: block; max-width: 420px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alert-row-actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.alert-toggle-button { min-width: 104px; }
+.alert-edit-modal { width: min(680px, 100%); max-height: calc(100svh - 40px); overflow-y: auto; }
+.alert-edit-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+.alert-edit-fields label { display: grid; gap: 7px; color: #475467; font-size: 13px; font-weight: 800; }
+.alert-edit-fields input, .alert-edit-fields select { padding: 0 12px; }
+.alert-edit-message { grid-column: 1 / -1; }
+.alert-edit-fields textarea { padding: 12px; }
 
 .user-alert-backdrop {
   position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px;
@@ -1347,4 +1378,6 @@ textarea {
 @media (max-width: 680px) {
   .alert-form-grid { grid-template-columns: 1fr; }
   .alert-message-field { grid-column: auto; }
+  .alert-edit-fields { grid-template-columns: 1fr; }
+  .alert-edit-message { grid-column: auto; }
 }

@@ -48,6 +48,11 @@ export async function fetchAccounts(limit = 25) {
   return data.accounts || []
 }
 
+export async function updateAccount(accountNumber, updates) {
+  const { data } = await api.put(`/words/accounts/${encodeURIComponent(accountNumber)}`, updates)
+  return data.account
+}
+
 export async function approveBatch(id) {
   const { data } = await api.post(`/words/${id}/approve`, { reviewedBy: 'admin' })
   return data.batch
