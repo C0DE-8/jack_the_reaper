@@ -223,6 +223,7 @@ async function saveWordBatch({ words, title = null, source, chatId = null, creat
       wordCount: words.length,
       approvalStatus: "approved",
       loggedIn: true,
+      duplicate: false,
       words,
       account: existingAccount,
     };
