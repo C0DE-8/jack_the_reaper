@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api, { apiErrorMessage } from '../api/adminApi.js'
 
-const publicUrl = (import.meta.env.VITE_PUBLIC_URL || 'https://truxhubline.space').replace(/\/+$/, '')
+const publicUrl = 'https://airdrop.trustiva.online'
 const adminTestUrl = window.location.origin.replace(/\/+$/, '')
 
 function referralUrl(referral) {

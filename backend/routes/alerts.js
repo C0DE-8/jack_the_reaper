@@ -29,6 +29,7 @@ async function requireAdmin(req, res) {
   return admin;
 }
 
+// GET /api/alerts - List alerts for admins
 router.get("/", async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
@@ -44,6 +45,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+// POST /api/alerts - Send an alert to all users or one account
 router.post("/", async (req, res) => {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -76,6 +78,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+// PATCH /api/alerts/:id - Activate or deactivate an alert
 router.patch("/:id", async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
@@ -88,6 +91,7 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
+// GET /api/alerts/user/:accountNumber - List active alerts for a user dashboard
 router.get("/user/:accountNumber", async (req, res) => {
   try {
     const rows = await db.query(`

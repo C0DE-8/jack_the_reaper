@@ -9,19 +9,19 @@ The client referral flow is already connected. A user opens a referral URL, subm
 The frontend site is:
 
 ```text
-https://truxhubline.space
+https://airdrop.trustiva.online
 ```
 
 Use this referral link format:
 
 ```text
-https://truxhubline.space/?ref=REFERRAL_CODE
+https://airdrop.trustiva.online/?ref=REFERRAL_CODE
 ```
 
 Example:
 
 ```text
-https://truxhubline.space/?ref=abc123456789
+https://airdrop.trustiva.online/?ref=abc123456789abc123456789
 ```
 
 ### Where the referral code currently exists
@@ -80,7 +80,7 @@ testing.
 The currently generated client link is:
 
 ```text
-https://truxhubline.space/?ref=be45b878370988bd0b6a48fa
+https://airdrop.trustiva.online/?ref=be45b878370988bd0b6a48fa
 ```
 
 When testing, open that URL, submit the words, and confirm in the browser
@@ -213,7 +213,7 @@ https://api.truxhubline.space/api/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>
 
 ## Completed demo flow
 
-1. A user opens `https://truxhubline.space/?ref=CODE`; admins can use the separate `/client?ref=CODE` test route on the admin site.
+1. A user opens `https://airdrop.trustiva.online/?ref=CODE`; admins can use the separate `/client?ref=CODE` test route on the admin site.
 2. Submit words.
 3. The backend sends the alert to level 1 users.
 4. The backend sends the alert to level 2 users only when the referral is assigned to them.
